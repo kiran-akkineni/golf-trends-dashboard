@@ -141,7 +141,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           tooltip: {
             ...TOOLTIP_CONFIG,
             callbacks: {
-              title: ([item]) => {
+              title: ([item]: [{ label: string }]) => {
                 const y = item.label;
                 return y === '2026*' ? '2026 (partial — Jan/Feb avg)' : y;
               },
