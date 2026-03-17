@@ -11,8 +11,8 @@ export async function runPythonFetch(): Promise<RawTrendsRecord> {
       pythonPath,
       [scriptPath],
       {
-        timeout: 120_000, // 2 min — sequential fetches with delays
-        maxBuffer: 1024 * 1024, // 1MB
+        timeout: 120_000,
+        maxBuffer: 1024 * 1024,
         env: { ...process.env, PYTHONUNBUFFERED: '1' },
       },
       (error, stdout, stderr) => {
@@ -23,7 +23,6 @@ export async function runPythonFetch(): Promise<RawTrendsRecord> {
           return;
         }
         if (stderr) {
-          // pytrends logs to stderr — not fatal
           console.warn('[fetch-trends] Python stderr (non-fatal):', stderr.slice(0, 500));
         }
         try {
@@ -37,13 +36,16 @@ export async function runPythonFetch(): Promise<RawTrendsRecord> {
   });
 }
 
-// Node.js fallback via google-trends-api npm package
-// Used when Python/pytrends is unavailable.
+// Node.js fallback — uses eval('require') to prevent webpack from attempting
+// to resolve 'google-trends-api' at build time (it is an optional runtime dep).
 export async function runNodeFetch(): Promise<RawTrendsRecord> {
-  // Dynamic import so the server doesn't crash if package isn't installed
-  const googleTrends = await import('google-trends-api').catch(() => null);
-  if (!googleTrends) {
-    throw new Error('google-trends-api not available — install it as a fallback');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let googleTrends: any;
+  try {
+    // eslint-disable-next-line no-eval
+    googleTrends = eval('require')('google-trends-api');
+  } catch {
+    throw new Error('google-trends-api not available — run: npm install google-trends-api');
   }
 
   const terms = [
@@ -56,7 +58,7 @@ export async function runNodeFetch(): Promise<RawTrendsRecord> {
 
   for (const term of terms) {
     try {
-      const raw = await googleTrends.default.interestOverTime({
+      const raw = await googleTrends.interestOverTime({
         keyword: term,
         startTime: new Date('2017-01-01'),
         geo: 'US',
@@ -70,7 +72,6 @@ export async function runNodeFetch(): Promise<RawTrendsRecord> {
         record[ts] = point.value[0] ?? 0;
       }
       results[term] = record;
-      // Throttle
       await delay(2500 + Math.random() * 2000);
     } catch (err) {
       results[term] = { error: String(err) };
