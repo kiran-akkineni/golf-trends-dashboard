@@ -30,7 +30,7 @@ session.headers.update(HEADERS)
 def strip_xssi(text):
     return text.lstrip(")]}',\n").strip()
 
-def get_token(term, timeframe="today 5-y", geo="US"):
+def get_token(term, timeframe="2017-01-01 2026-03-18", geo="US"):
     req_body = json.dumps({
         "comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}],
         "category": 0, "property": ""
@@ -131,7 +131,8 @@ for i, term in enumerate(TERMS):
     retries = 2
     for attempt in range(retries):
         try:
-            token, request = get_token(term)
+            today = time.strftime("%Y-%m-%d", time.gmtime())
+            token, request = get_token(term, timeframe=f"2017-01-01 {today}")
             time.sleep(1 + random.random())
             series = get_series(token, request)
             raw[term] = series
