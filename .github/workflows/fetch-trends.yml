@@ -10,19 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: |
-          pip install requests
-          pip install "urllib3==1.26.18"
-          pip install "pytrends==4.9.2" --no-deps
-          pip install lxml
-
+        run: pip install requests
       - name: Fetch trends and push to Redis
         env:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}

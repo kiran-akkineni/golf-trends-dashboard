@@ -1,186 +1,143 @@
 #!/usr/bin/env python3
 """
-local_fetch_push.py — Fetch Google Trends data and push to Upstash Redis.
-Patches urllib3.util.retry.Retry for compatibility with pytrends on urllib3 v2.
+Fetches Google Trends data directly (no pytrends) and pushes to Upstash Redis.
 """
 
-import json
-import time
-import random
-import sys
-import os
-import urllib.request
+import json, time, random, sys, os, urllib.request, urllib.parse
+import requests
 
-# ── Patch urllib3 Retry for pytrends compatibility ────────────────────────────
-try:
-    from urllib3.util.retry import Retry
-    _orig_init = Retry.__init__
-    def _patched_init(self, *args, **kwargs):
-        if 'method_whitelist' in kwargs:
-            kwargs['allowed_methods'] = kwargs.pop('method_whitelist')
-        _orig_init(self, *args, **kwargs)
-    Retry.__init__ = _patched_init
-except Exception as e:
-    print(f"[warn] Could not patch Retry: {e}", file=sys.stderr)
-
-# ── Config ────────────────────────────────────────────────────────────────────
 UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
-TTL_SECONDS   = 86400 * 8  # 8 days
+TTL_SECONDS   = 86400 * 8
 
-TERMS = [
-    "golf clubs", "golf balls", "golf bags",
-    "golf", "golf equipment", "golf simulator",
-]
+TERMS = ["golf clubs","golf balls","golf bags","golf","golf equipment","golf simulator"]
 
 if not UPSTASH_URL or not UPSTASH_TOKEN:
-    print("ERROR: Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN env vars.")
+    print("ERROR: Missing Upstash env vars.")
     sys.exit(1)
 
-try:
-    from pytrends.request import TrendReq
-except ImportError:
-    print("ERROR: pytrends not installed. Run: pip install pytrends")
-    sys.exit(1)
+BASE = "https://trends.google.com"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://trends.google.com/trends/explore",
+}
 
+session = requests.Session()
+session.headers.update(HEADERS)
 
-def fetch_term(pytrends, term, timeframe="today 5-y", geo="US"):
-    pytrends.build_payload([term], cat=0, timeframe=timeframe, geo=geo)
-    df = pytrends.interest_over_time()
-    if df.empty:
-        print(f"  ⚠  Empty response for: {term}", file=sys.stderr)
-        return {}
-    df = df.drop(columns=["isPartial"], errors="ignore")
-    return {str(k): int(v) for k, v in df[term].items()}
+def strip_xssi(text):
+    return text.lstrip(")]}',\n").strip()
 
+def get_token(term, timeframe="today 5-y", geo="US"):
+    req_body = json.dumps({"comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}], "category": 0, "property": ""})
+    params = {"hl": "en-US", "tz": "360", "req": req_body}
+    r = session.get(f"{BASE}/trends/api/explore", params=params, timeout=30)
+    r.raise_for_status()
+    data = json.loads(strip_xssi(r.text))
+    widgets = data.get("widgets", [])
+    w = next((w for w in widgets if w["id"] == "TIMESERIES"), None)
+    if not w:
+        raise ValueError(f"No TIMESERIES widget for '{term}'")
+    return w["token"], w["request"]
+
+def get_series(token, request):
+    params = {"hl": "en-US", "tz": "360", "req": json.dumps(request), "token": token}
+    r = session.get(f"{BASE}/trends/api/widgetdata/multiline", params=params, timeout=30)
+    r.raise_for_status()
+    data = json.loads(strip_xssi(r.text))
+    result = {}
+    for pt in data.get("default", {}).get("timelineData", []):
+        date = time.strftime("%Y-%m-%d", time.gmtime(int(pt["time"])))
+        result[date] = pt["value"][0]["extractedValue"]
+    return result
 
 def monthly_bucket(weekly):
     from collections import defaultdict
-    buckets = defaultdict(list)
-    for iso_date, val in weekly.items():
-        try:
-            parts = iso_date.split(" ")[0].split("-")
-            key = f"{parts[0]}-{parts[1].zfill(2)}"
-            buckets[key].append(val)
-        except Exception:
-            continue
-    result = {}
-    for key, vals in buckets.items():
-        result[key] = round(sum(vals) / len(vals)) if len(vals) >= 2 else None
-    return result
+    b = defaultdict(list)
+    for d, v in weekly.items():
+        key = d[:7]
+        b[key].append(v)
+    return {k: round(sum(v)/len(v)) if len(v)>=2 else None for k,v in b.items()}
 
-
-def to_quarterly(monthly):
+def to_quarterly(m):
     from collections import defaultdict
     import math
-    buckets = defaultdict(list)
-    for key, val in monthly.items():
-        if val is None:
-            continue
-        year, month = key.split("-")
-        q = math.ceil(int(month) / 3)
-        buckets[f"{year}-Q{q}"].append(val)
-    return {k: round(sum(v) / len(v)) for k, v in buckets.items() if len(v) == 3}
+    b = defaultdict(list)
+    for k,v in m.items():
+        if v is None: continue
+        yr,mo = k.split("-")
+        b[f"{yr}-Q{math.ceil(int(mo)/3)}"].append(v)
+    return {k: round(sum(v)/len(v)) for k,v in b.items() if len(v)==3}
 
-
-def to_annual(monthly):
+def to_annual(m):
     from collections import defaultdict
-    buckets = defaultdict(list)
-    for key, val in monthly.items():
-        if val is None:
-            continue
-        buckets[key.split("-")[0]].append(val)
-    return {k: round(sum(v) / len(v)) for k, v in buckets.items() if len(v) >= 6}
+    b = defaultdict(list)
+    for k,v in m.items():
+        if v is None: continue
+        b[k[:4]].append(v)
+    return {k: round(sum(v)/len(v)) for k,v in b.items() if len(v)>=6}
 
-
-def to_summer_peak(monthly):
+def to_summer_peak(m):
     from collections import defaultdict
-    buckets = defaultdict(list)
-    for key, val in monthly.items():
-        if val is None:
-            continue
-        year, month = key.split("-")
-        if int(month) in (6, 7, 8):
-            buckets[year].append(val)
-    return {k: max(v) for k, v in buckets.items() if len(v) == 3}
-
+    b = defaultdict(list)
+    for k,v in m.items():
+        if v is None: continue
+        yr,mo = k.split("-")
+        if int(mo) in (6,7,8): b[yr].append(v)
+    return {k: max(v) for k,v in b.items() if len(v)==3}
 
 def upstash_set(key, value, ttl):
     url = f"{UPSTASH_URL}/set/{urllib.parse.quote(key, safe='')}"
     body = json.dumps([value, "EX", ttl]).encode()
-    req = urllib.request.Request(
-        url, data=body,
+    req = urllib.request.Request(url, data=body,
         headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/json"},
-        method="POST",
-    )
+        method="POST")
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
-
-import urllib.parse
-
-print("Initializing pytrends...")
-pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25), retries=2, backoff_factor=0.3)
-
+# ── Fetch ─────────────────────────────────────────────────────────────────────
+print("Fetching Google Trends data...")
 raw = {}
 for i, term in enumerate(TERMS):
-    print(f"Fetching ({i+1}/{len(TERMS)}): {term} ...", end=" ", flush=True)
+    print(f"({i+1}/{len(TERMS)}) {term}...", end=" ", flush=True)
     try:
-        data = fetch_term(pytrends, term)
-        raw[term] = data
-        print(f"✓ {len(data)} points")
+        token, request = get_token(term)
+        time.sleep(0.5 + random.random() * 0.5)
+        series = get_series(token, request)
+        raw[term] = series
+        print(f"✓ {len(series)} points")
     except Exception as e:
         print(f"✗ {e}")
         raw[term] = {}
-    if i < len(TERMS) - 1:
-        delay = random.uniform(2.5, 4.5)
-        print(f"  Sleeping {delay:.1f}s...")
+    if i < len(TERMS)-1:
+        delay = random.uniform(3.0, 5.0)
+        print(f"  sleeping {delay:.1f}s...")
         time.sleep(delay)
 
-print("\nTransforming data...")
-term_map = {
-    "golf clubs": "golfClubs", "golf balls": "golfBalls", "golf bags": "golfBags",
-    "golf": "golf", "golf equipment": "golfEquipment", "golf simulator": "golfSimulator",
-}
+term_map = {"golf clubs":"golfClubs","golf balls":"golfBalls","golf bags":"golfBags",
+            "golf":"golf","golf equipment":"golfEquipment","golf simulator":"golfSimulator"}
 
-monthly = {}
-for term, key in term_map.items():
-    monthly[key] = monthly_bucket(raw.get(term, {}))
+monthly = {v: monthly_bucket(raw.get(k,{})) for k,v in term_map.items()}
+fetched = sum(1 for v in monthly.values() if v)
+print(f"\nTerms with data: {fetched}/6")
+if fetched == 0:
+    print("ERROR: No data fetched.")
+    sys.exit(1)
 
-clubs_monthly = monthly["golfClubs"]
+clubs = monthly["golfClubs"]
 payload = {
     "source": "live", "stale": False,
     "lastUpdated": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
     "data": {
         "monthly": monthly,
-        "quarterly": {
-            "golfClubs": to_quarterly(monthly["golfClubs"]),
-            "golf": to_quarterly(monthly["golf"]),
-            "golfEquipment": to_quarterly(monthly["golfEquipment"]),
-            "golfSimulator": to_quarterly(monthly["golfSimulator"]),
-        },
-        "annual": {
-            "golfClubs": to_annual(clubs_monthly),
-            "summerPeak": to_summer_peak(clubs_monthly),
-        },
+        "quarterly": {k: to_quarterly(monthly[k]) for k in ["golfClubs","golf","golfEquipment","golfSimulator"]},
+        "annual": {"golfClubs": to_annual(clubs), "summerPeak": to_summer_peak(clubs)},
     },
 }
 
-fetched = sum(1 for v in monthly.values() if v)
-print(f"Terms with data: {fetched}/6")
-
-if fetched == 0:
-    print("\nERROR: No terms returned data.")
-    sys.exit(1)
-
-print("\nPushing to Upstash Redis...")
-json_str = json.dumps(payload)
-try:
-    r1 = upstash_set("golf_trends_data", json_str, TTL_SECONDS)
-    r2 = upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS + 3600)
-    print(f"✓ golf_trends_data saved: {r1}")
-    print(f"✓ golf_trends_last_updated saved: {r2}")
-    print(f"\nDone! Dashboard will now serve live data.")
-except Exception as e:
-    print(f"✗ Redis push failed: {e}")
-    sys.exit(1)
+print("Pushing to Redis...")
+upstash_set("golf_trends_data", json.dumps(payload), TTL_SECONDS)
+upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS+3600)
+print("✓ Done!")
