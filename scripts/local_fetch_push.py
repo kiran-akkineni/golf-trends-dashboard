@@ -100,11 +100,18 @@ def to_summer_peak(m):
 def upstash_set(key, value, ttl):
     url = f"{UPSTASH_URL}/set/{urllib.parse.quote(key, safe='')}"
     body = json.dumps([value, "EX", ttl]).encode()
+    print(f"  Writing {key} ({len(body)} bytes) to Upstash...")
     req = urllib.request.Request(url, data=body,
         headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/json"},
         method="POST")
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            print(f"  Upstash response: {result}")
+            return result
+    except Exception as e:
+        print(f"  Upstash ERROR: {e}")
+        raise
 
 # ── Warm up session with a page visit first ───────────────────────────────────
 print("Warming up session...")
