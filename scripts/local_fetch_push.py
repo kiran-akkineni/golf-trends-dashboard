@@ -98,11 +98,13 @@ def to_summer_peak(m):
     return {k: max(v) for k,v in b.items() if len(v)==3}
 
 def upstash_set(key, value, ttl):
-    url = f"{UPSTASH_URL}/set/{urllib.parse.quote(key, safe='')}"
-    body = json.dumps([value, "EX", ttl]).encode()
+    # Use SETEX command: POST /setex/key/ttl/value
+    encoded_key = urllib.parse.quote(str(key), safe='')
+    url = f"{UPSTASH_URL}/setex/{encoded_key}/{ttl}"
+    body = value.encode('utf-8') if isinstance(value, str) else str(value).encode('utf-8')
     print(f"  Writing {key} ({len(body)} bytes) to Upstash...")
     req = urllib.request.Request(url, data=body,
-        headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/octet-stream"},
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
