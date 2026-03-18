@@ -18,8 +18,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --force-reinstall "urllib3<2.0"
-          pip install --force-reinstall pytrends requests
+          pip install requests
+          pip install "urllib3==1.26.18"
+          pip install "pytrends==4.9.2" --no-deps
+          pip install lxml
 
       - name: Fetch trends and push to Redis
         env:
