@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['https-proxy-agent'],
+    serverComponentsExternalPackages: ['undici', 'https-proxy-agent'],
   },
 };
 
