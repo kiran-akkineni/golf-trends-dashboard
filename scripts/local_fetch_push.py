@@ -31,9 +31,14 @@ def strip_xssi(text):
     return text.lstrip(")]}',\n").strip()
 
 def get_token(term, timeframe="today 5-y", geo="US"):
-    req_body = json.dumps({"comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}], "category": 0, "property": ""})
+    req_body = json.dumps({
+        "comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}],
+        "category": 0, "property": ""
+    })
     params = {"hl": "en-US", "tz": "360", "req": req_body}
     r = session.get(f"{BASE}/trends/api/explore", params=params, timeout=30)
+    if r.status_code == 429:
+        raise Exception(f"429 rate limited")
     r.raise_for_status()
     data = json.loads(strip_xssi(r.text))
     widgets = data.get("widgets", [])
@@ -50,15 +55,19 @@ def get_series(token, request):
     result = {}
     for pt in data.get("default", {}).get("timelineData", []):
         date = time.strftime("%Y-%m-%d", time.gmtime(int(pt["time"])))
-        result[date] = pt["value"][0]["extractedValue"]
+        # value can be list of dicts OR list of ints depending on API version
+        val = pt["value"][0]
+        if isinstance(val, dict):
+            result[date] = val.get("extractedValue", 0)
+        else:
+            result[date] = int(val)
     return result
 
 def monthly_bucket(weekly):
     from collections import defaultdict
     b = defaultdict(list)
     for d, v in weekly.items():
-        key = d[:7]
-        b[key].append(v)
+        b[d[:7]].append(v)
     return {k: round(sum(v)/len(v)) if len(v)>=2 else None for k,v in b.items()}
 
 def to_quarterly(m):
@@ -97,22 +106,38 @@ def upstash_set(key, value, ttl):
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 
+# ── Warm up session with a page visit first ───────────────────────────────────
+print("Warming up session...")
+try:
+    session.get("https://trends.google.com/trends/explore", timeout=15)
+    time.sleep(3 + random.random() * 2)
+except Exception as e:
+    print(f"  warm-up warning: {e}")
+
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 print("Fetching Google Trends data...")
 raw = {}
 for i, term in enumerate(TERMS):
     print(f"({i+1}/{len(TERMS)}) {term}...", end=" ", flush=True)
-    try:
-        token, request = get_token(term)
-        time.sleep(0.5 + random.random() * 0.5)
-        series = get_series(token, request)
-        raw[term] = series
-        print(f"✓ {len(series)} points")
-    except Exception as e:
-        print(f"✗ {e}")
-        raw[term] = {}
+    retries = 2
+    for attempt in range(retries):
+        try:
+            token, request = get_token(term)
+            time.sleep(1 + random.random())
+            series = get_series(token, request)
+            raw[term] = series
+            print(f"✓ {len(series)} points")
+            break
+        except Exception as e:
+            if attempt < retries - 1:
+                wait = 10 + random.uniform(5, 10)
+                print(f"  retrying in {wait:.0f}s ({e})...")
+                time.sleep(wait)
+            else:
+                print(f"✗ {e}")
+                raw[term] = {}
     if i < len(TERMS)-1:
-        delay = random.uniform(3.0, 5.0)
+        delay = random.uniform(4.0, 7.0)
         print(f"  sleeping {delay:.1f}s...")
         time.sleep(delay)
 
@@ -140,4 +165,4 @@ payload = {
 print("Pushing to Redis...")
 upstash_set("golf_trends_data", json.dumps(payload), TTL_SECONDS)
 upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS+3600)
-print("✓ Done!")
+print("✓ Done! Dashboard will now serve live data.")
