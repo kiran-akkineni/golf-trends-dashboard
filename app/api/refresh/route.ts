@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runPythonFetch, runNodeFetch } from '@/lib/fetch-trends';
+import { fetchAllTerms } from '@/lib/trends-direct-fetch';
 import { buildTrendsResponse } from '@/lib/transform';
 import { setTrendsData } from '@/lib/redis';
 
 export const runtime = 'nodejs';
-export const maxDuration = 150; // seconds
+export const maxDuration = 150;
 
 export async function GET(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -18,29 +18,28 @@ export async function GET(req: NextRequest) {
   }
 
   const startedAt = Date.now();
-  let raw;
-  let fetchMethod = 'python';
+  console.log('[refresh] Starting Google Trends fetch via proxy...');
 
+  let raw;
   try {
-    // Try Python/pytrends first
-    console.log('[refresh] Starting Python fetch…');
-    raw = await runPythonFetch();
-  } catch (pythonErr) {
-    console.warn('[refresh] Python failed, trying Node fallback:', String(pythonErr));
-    fetchMethod = 'node';
-    try {
-      raw = await runNodeFetch();
-    } catch (nodeErr) {
-      console.error('[refresh] Node fallback also failed:', String(nodeErr));
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Both fetch methods failed. Python: ${String(pythonErr)}. Node: ${String(nodeErr)}`,
-          stale: true,
-        },
-        { status: 200 } // always 200 so Vercel cron doesn't alert
-      );
-    }
+    raw = await fetchAllTerms('today 5-y', 'US');
+  } catch (err) {
+    console.error('[refresh] Fetch failed:', String(err));
+    return NextResponse.json(
+      { ok: false, error: String(err), stale: true },
+      { status: 200 }
+    );
+  }
+
+  const termsFetched = Object.values(raw).filter(
+    (v) => typeof v === 'object' && !('error' in v) && Object.keys(v).length > 0
+  ).length;
+
+  if (termsFetched === 0) {
+    return NextResponse.json(
+      { ok: false, error: 'All terms returned empty — proxy may be blocked', stale: true },
+      { status: 200 }
+    );
   }
 
   const lastUpdated = new Date().toISOString();
@@ -54,22 +53,15 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Count actually-fetched terms (no error key)
-  const termsFetched = Object.values(raw).filter(
-    (v) => !('error' in (v as object))
-  ).length;
-
   const saved = await setTrendsData(trendsResponse);
-
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-  console.log(`[refresh] Done — ${termsFetched}/6 terms, ${elapsed}s, saved=${saved}, method=${fetchMethod}`);
+  console.log(`[refresh] Done — ${termsFetched}/6 terms, ${elapsed}s, redisSaved=${saved}`);
 
   return NextResponse.json({
     ok: true,
     termsFetched,
     lastUpdated,
     elapsed: `${elapsed}s`,
-    fetchMethod,
     redisSaved: saved,
   });
 }
