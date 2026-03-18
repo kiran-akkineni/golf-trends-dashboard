@@ -17,7 +17,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pytrends requests
+        run: pip install pytrends requests "urllib3<2.0"
 
       - name: Fetch trends and push to Redis
         env:
