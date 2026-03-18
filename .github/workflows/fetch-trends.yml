@@ -2,8 +2,8 @@ name: Fetch Golf Trends
 
 on:
   schedule:
-    - cron: '0 7 * * 1'  # Every Monday at 07:00 UTC
-  workflow_dispatch:       # Allow manual runs from GitHub UI
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
 
 jobs:
   fetch:
@@ -17,7 +17,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install pytrends requests "urllib3<2.0"
+        run: |
+          pip install --force-reinstall "urllib3<2.0"
+          pip install --force-reinstall pytrends requests
 
       - name: Fetch trends and push to Redis
         env:
