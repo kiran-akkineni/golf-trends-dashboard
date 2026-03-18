@@ -42,8 +42,7 @@ export async function runNodeFetch(): Promise<RawTrendsRecord> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let googleTrends: any;
   try {
-    // eslint-disable-next-line no-eval
-    googleTrends = eval('require')('google-trends-api');
+    googleTrends = require('google-trends-api');
   } catch {
     throw new Error('google-trends-api not available — run: npm install google-trends-api');
   }
