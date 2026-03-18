@@ -63,12 +63,14 @@ def get_series(token, request):
             result[date] = int(val)
     return result
 
-def monthly_bucket(weekly):
+def monthly_bucket(data):
+    """Convert weekly or monthly data to monthly buckets."""
     from collections import defaultdict
     b = defaultdict(list)
-    for d, v in weekly.items():
+    for d, v in data.items():
         b[d[:7]].append(v)
-    return {k: round(sum(v)/len(v)) if len(v)>=2 else None for k,v in b.items()}
+    # If only 1 point per month (already monthly granularity), accept it directly
+    return {k: round(sum(v)/len(v)) for k,v in b.items()}
 
 def to_quarterly(m):
     from collections import defaultdict
