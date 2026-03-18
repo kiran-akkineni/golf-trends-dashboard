@@ -27,7 +27,8 @@ async function proxyFetch(url: string, init: RequestInit = {}): Promise<Response
 
   if (proxyUrl) {
     // Use undici ProxyAgent — works with Node.js 18+ native fetch
-    const { ProxyAgent, fetch: undiciFetch } = await import('undici');
+    // eslint-disable-next-line no-eval
+    const { ProxyAgent, fetch: undiciFetch } = eval('require')('undici');
     const dispatcher = new ProxyAgent(proxyUrl);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return undiciFetch(url, { ...init, dispatcher } as any) as unknown as Response;
