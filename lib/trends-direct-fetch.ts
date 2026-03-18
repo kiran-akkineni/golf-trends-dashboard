@@ -1,61 +1,75 @@
 /**
  * lib/trends-direct-fetch.ts
- *
- * Fetches Google Trends data directly via the unofficial API endpoints,
- * routing through a residential proxy using undici ProxyAgent (compatible
- * with Node.js 18+ native fetch on Vercel).
+ * Uses Node.js built-in https module + https-proxy-agent for reliable proxy support.
  */
 
+import https from 'https';
 import type { RawTrendsRecord } from './types';
 
-const BASE = 'https://trends.google.com';
+const BASE_HOST = 'trends.google.com';
 const HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  Accept: 'application/json, text/plain, */*',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
-  Referer: 'https://trends.google.com/trends/explore',
+  'Referer': 'https://trends.google.com/trends/explore',
 };
 
 function stripXssi(text: string): string {
   return text.replace(/^\)\]\}',?\n/, '').trim();
 }
 
-async function proxyFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const proxyUrl = process.env.PROXY_URL;
+function httpsGet(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proxyUrl = process.env.PROXY_URL;
+    const parsed = new URL(url);
 
-  if (proxyUrl) {
-    // Use undici ProxyAgent — works with Node.js 18+ native fetch
-    // eslint-disable-next-line no-eval
-    const { ProxyAgent, fetch: undiciFetch } = eval('require')('undici');
-    const dispatcher = new ProxyAgent(proxyUrl);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return undiciFetch(url, { ...init, dispatcher } as any) as unknown as Response;
-  }
+    let agent: any = undefined;
+    if (proxyUrl) {
+      // eslint-disable-next-line no-eval
+      const { HttpsProxyAgent } = eval('require')('https-proxy-agent');
+      agent = new HttpsProxyAgent(proxyUrl);
+    }
 
-  return fetch(url, init);
+    const options = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: HEADERS,
+      agent,
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+        } else {
+          resolve(data);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(30000, () => {
+      req.destroy(new Error('Request timeout'));
+    });
+    req.end();
+  });
 }
 
-async function getToken(
-  term: string,
-  timeframe = 'today 5-y',
-  geo = 'US'
-): Promise<{ token: string; request: object }> {
+async function getToken(term: string, timeframe = 'today 5-y', geo = 'US') {
   const comparisonItem = [{ keyword: term, geo, time: timeframe }];
   const req = JSON.stringify({ comparisonItem, category: 0, property: '' });
   const params = new URLSearchParams({ hl: 'en-US', tz: '360', req });
-  const url = `${BASE}/trends/api/explore?${params}`;
+  const url = `https://${BASE_HOST}/trends/api/explore?${params}`;
 
-  const resp = await proxyFetch(url, { headers: HEADERS });
-  if (!resp.ok) throw new Error(`explore HTTP ${resp.status} for "${term}"`);
-
-  const text = await resp.text();
+  const text = await httpsGet(url);
   const json = JSON.parse(stripXssi(text));
   const widgets: Array<{ id: string; token: string; request: object }> = json?.widgets ?? [];
   const timeWidget = widgets.find((w) => w.id === 'TIMESERIES');
   if (!timeWidget) throw new Error(`No TIMESERIES widget for "${term}"`);
-
   return { token: timeWidget.token, request: timeWidget.request };
 }
 
@@ -65,39 +79,27 @@ async function getTimeSeries(token: string, request: object): Promise<Record<str
     req: JSON.stringify(request),
     token,
   });
-  const url = `${BASE}/trends/api/widgetdata/multiline?${params}`;
+  const url = `https://${BASE_HOST}/trends/api/widgetdata/multiline?${params}`;
 
-  const resp = await proxyFetch(url, { headers: HEADERS });
-  if (!resp.ok) throw new Error(`widgetdata HTTP ${resp.status}`);
-
-  const text = await resp.text();
+  const text = await httpsGet(url);
   const json = JSON.parse(stripXssi(text));
-  const timelineData: Array<{
-    time: string;
-    value: Array<{ extractedValue: number }>;
-  }> = json?.default?.timelineData ?? [];
+  const timelineData: Array<{ time: string; value: Array<{ extractedValue: number }> }> =
+    json?.default?.timelineData ?? [];
 
   const result: Record<string, number> = {};
   for (const point of timelineData) {
     const date = new Date(parseInt(point.time, 10) * 1000);
-    const iso = date.toISOString().split('T')[0];
-    result[iso] = point.value?.[0]?.extractedValue ?? 0;
+    result[date.toISOString().split('T')[0]] = point.value?.[0]?.extractedValue ?? 0;
   }
   return result;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
-const TERMS = [
-  'golf clubs', 'golf balls', 'golf bags',
-  'golf', 'golf equipment', 'golf simulator',
-] as const;
+const TERMS = ['golf clubs', 'golf balls', 'golf bags', 'golf', 'golf equipment', 'golf simulator'] as const;
 
 export async function fetchAllTerms(timeframe = 'today 5-y', geo = 'US'): Promise<RawTrendsRecord> {
   const results: RawTrendsRecord = {};
-
   for (let i = 0; i < TERMS.length; i++) {
     const term = TERMS[i];
     console.log(`[trends] (${i + 1}/${TERMS.length}) fetching "${term}"...`);
@@ -117,6 +119,5 @@ export async function fetchAllTerms(timeframe = 'today 5-y', geo = 'US'): Promis
       await sleep(delay);
     }
   }
-
   return results;
 }
