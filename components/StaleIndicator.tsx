@@ -27,7 +27,7 @@ export default function StaleIndicator({ lastUpdated, stale, source }: StaleIndi
       ) : (
         <>
           {formattedDate && <div>Updated: {formattedDate}</div>}
-          <div style={{ color: 'var(--dim)' }}>Refreshes daily 06:00 UTC</div>
+          <div style={{ color: 'var(--dim)' }}>Refreshes weekly · Mondays 07:00 UTC</div>
         </>
       )}
     </div>
