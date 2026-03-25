@@ -6,7 +6,8 @@ import StaleIndicator from './StaleIndicator';
 import ChartCard from './ChartCard';
 import Heatmap from './Heatmap';
 import {
-  TOOLTIP_CONFIG, SCALE_CONFIG, barColor,
+  TOOLTIP_CONFIG, SCALE_CONFIG, COLORS, FILLS, REF_LINES,
+  barColor, yoyBarColor,
   sortedEntries, fmtMonthLabel, fmtQuarterLabel,
   lastNMonths, yoyDeltas,
 } from '@/lib/chart-helpers';
@@ -36,16 +37,11 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const c4 = useRef<HTMLCanvasElement>(null);
   const c6 = useRef<HTMLCanvasElement>(null);
 
-  // Chart instance refs — typed as `any` to avoid complex generics from dynamic import
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Chart instance refs
   const inst1 = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst2 = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst3 = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst4 = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst6 = useRef<any>(null);
 
   // Load Chart.js once
@@ -67,7 +63,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
   }, []);
 
   // Destroy a chart instance safely
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function destroy(ref: React.MutableRefObject<any>) {
     if (ref.current) {
       ref.current.destroy();
@@ -103,10 +98,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
             type: 'line',
             label: 'Summer Peak',
             data: peakVals,
-            borderColor: '#e3b341',
+            borderColor: COLORS.gold,
             backgroundColor: 'transparent',
             pointRadius: 4,
-            pointBackgroundColor: '#e3b341',
+            pointBackgroundColor: COLORS.gold,
             borderWidth: 1.5,
             tension: 0.3,
             order: 1,
@@ -115,7 +110,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
             type: 'line',
             label: 'Pre-pandemic baseline (52)',
             data: allYears.map(() => 52),
-            borderColor: 'rgba(227,179,65,0.35)',
+            borderColor: REF_LINES.prePandemic,
             borderDash: [5, 4],
             pointRadius: 0,
             borderWidth: 1,
@@ -125,7 +120,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
             type: 'line',
             label: 'Post-pandemic normal (67)',
             data: allYears.map(() => 67),
-            borderColor: 'rgba(57,211,83,0.35)',
+            borderColor: REF_LINES.postPandemic,
             borderDash: [5, 4],
             pointRadius: 0,
             borderWidth: 1,
@@ -153,7 +148,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
             ...SCALE_CONFIG.x,
             ticks: {
               ...SCALE_CONFIG.x.ticks,
-              color: (ctx) => ctx.tick?.label === '2026*' ? '#e3b341' : '#4d6b56',
+              color: (ctx) => ctx.tick?.label === '2026*' ? COLORS.gold : COLORS.tick,
             },
           },
           y: SCALE_CONFIG.y,
@@ -178,7 +173,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
       ])
     ).sort();
 
-    // Only include quarters where at least one series has data
     const labels = allQKeys.map(fmtQuarterLabel);
 
     inst2.current = new Chart(c2.current, {
@@ -189,7 +183,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf (broad)',
             data: allQKeys.map((k) => quarterly.golf[k] ?? null),
-            borderColor: '#39d353',
+            borderColor: COLORS.green,
             backgroundColor: 'transparent',
             borderWidth: 2,
             pointRadius: 2,
@@ -199,7 +193,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Clubs',
             data: allQKeys.map((k) => quarterly.golfClubs[k] ?? null),
-            borderColor: '#e3b341',
+            borderColor: COLORS.blue,
             backgroundColor: 'transparent',
             borderWidth: 2,
             pointRadius: 2,
@@ -209,7 +203,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Equipment',
             data: allQKeys.map((k) => quarterly.golfEquipment[k] ?? null),
-            borderColor: '#58a6ff',
+            borderColor: COLORS.teal,
             backgroundColor: 'transparent',
             borderWidth: 1.5,
             borderDash: [3, 2],
@@ -220,7 +214,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Simulator',
             data: allQKeys.map((k) => quarterly.golfSimulator[k] ?? null),
-            borderColor: '#bc8cff',
+            borderColor: COLORS.purple,
             backgroundColor: 'transparent',
             borderWidth: 1.5,
             borderDash: [5, 3],
@@ -274,38 +268,38 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Clubs',
             data: clubsVals,
-            borderColor: '#e3b341',
-            backgroundColor: 'rgba(227,179,65,0.08)',
+            borderColor: COLORS.blue,
+            backgroundColor: FILLS.clubs,
             fill: true,
             tension: 0.4,
             borderWidth: 2.5,
             pointRadius: clubsPointRadius,
-            pointBackgroundColor: '#e3b341',
+            pointBackgroundColor: COLORS.blue,
             spanGaps: false,
           },
           {
             label: 'Golf Balls',
             data: ballsVals,
-            borderColor: '#39d353',
-            backgroundColor: 'rgba(57,211,83,0.05)',
+            borderColor: COLORS.green,
+            backgroundColor: FILLS.balls,
             fill: true,
             tension: 0.4,
             borderWidth: 2,
             pointRadius: ballsPointRadius,
-            pointBackgroundColor: '#39d353',
+            pointBackgroundColor: COLORS.green,
             spanGaps: false,
           },
           {
             label: 'Golf Bags',
             data: bagsVals,
-            borderColor: '#58a6ff',
+            borderColor: COLORS.teal,
             backgroundColor: 'transparent',
             fill: false,
             borderDash: [4, 3],
             tension: 0.4,
             borderWidth: 1.5,
             pointRadius: bagsPointRadius,
-            pointBackgroundColor: '#58a6ff',
+            pointBackgroundColor: COLORS.teal,
             spanGaps: false,
           },
         ],
@@ -356,7 +350,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Clubs',
             data: clubsVals,
-            borderColor: '#e3b341',
+            borderColor: COLORS.blue,
             backgroundColor: 'transparent',
             fill: false,
             tension: 0.4,
@@ -367,7 +361,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           {
             label: 'Golf Simulator',
             data: simVals,
-            borderColor: '#bc8cff',
+            borderColor: COLORS.purple,
             backgroundColor: 'transparent',
             fill: false,
             borderDash: [4, 2],
@@ -405,11 +399,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
       clubs2026Feb as number | null
     );
 
-    const colors = values.map((v, i) => {
-      if (v === null) return 'transparent';
-      if (isPartial[i]) return 'rgba(227,179,65,0.55)';
-      return (v ?? 0) >= 0 ? '#26a641' : '#7d2025';
-    });
+    const colors = values.map((v, i) => yoyBarColor(v, isPartial[i]));
 
     inst6.current = new Chart(c6.current, {
       type: 'bar',
@@ -447,12 +437,12 @@ export default function Dashboard({ initialData }: DashboardProps) {
             ...SCALE_CONFIG.x,
             ticks: {
               ...SCALE_CONFIG.x.ticks,
-              color: (ctx) => ctx.tick?.label?.includes('*') ? '#e3b341' : '#4d6b56',
+              color: (ctx) => ctx.tick?.label?.includes('*') ? COLORS.gold : COLORS.tick,
             },
           },
           y: {
-            ticks: { color: '#4d6b56', font: { family: "'IBM Plex Mono'", size: 10 } },
-            grid:  { color: '#1c2e20' },
+            ticks: { color: COLORS.tick, font: { family: "'IBM Plex Mono'", size: 10 } },
+            grid:  { color: COLORS.grid },
           },
         },
       },
@@ -529,10 +519,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <ChartCard
             title="Golf Clubs · Annual Average vs Summer Peak"
             legend={[
-              { color: '#39d353', label: 'Annual avg ≥75' },
-              { color: '#26a641', label: '≥65' },
-              { color: '#1a6b2e', label: '≥58' },
-              { color: '#e3b341', label: 'Summer peak' },
+              { color: COLORS.blue, label: 'Annual avg ≥75' },
+              { color: '#3b82f6', label: '≥65' },
+              { color: '#93c5fd', label: '≥58' },
+              { color: COLORS.gold, label: 'Summer peak' },
             ]}
             footnote="Bar shading encodes magnitude. Summer peak = max of Jun/Jul/Aug. 2026* = Jan–Feb average only."
             below={
@@ -575,10 +565,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <ChartCard
             title="All Terms · Quarterly Average (2017–present)"
             legend={[
-              { color: '#39d353', label: 'Golf (broad)' },
-              { color: '#e3b341', label: 'Golf Clubs' },
-              { color: '#58a6ff', label: 'Golf Equipment', dashed: true },
-              { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
+              { color: COLORS.green, label: 'Golf (broad)' },
+              { color: COLORS.blue, label: 'Golf Clubs' },
+              { color: COLORS.teal, label: 'Golf Equipment', dashed: true },
+              { color: COLORS.purple, label: 'Golf Simulator', dashed: true },
             ]}
             footnote="Each quarter is the average of its 3 constituent monthly values. Quarters with any null month are omitted."
           >
@@ -596,9 +586,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <ChartCard
             title="Golf Clubs / Balls / Bags · Last 24 Months"
             legend={[
-              { color: '#e3b341', label: 'Clubs' },
-              { color: '#39d353', label: 'Balls' },
-              { color: '#58a6ff', label: 'Bags', dashed: true },
+              { color: COLORS.blue, label: 'Clubs' },
+              { color: COLORS.green, label: 'Balls' },
+              { color: COLORS.teal, label: 'Bags', dashed: true },
             ]}
             footnote="Peak month marked with larger point radius. Bags exhibit a November gifting spike distinct from the summer equipment pattern."
           >
@@ -616,8 +606,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <ChartCard
             title="Golf Simulator vs. Golf Clubs · Last 24 Months"
             legend={[
-              { color: '#e3b341', label: 'Golf Clubs' },
-              { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
+              { color: COLORS.blue, label: 'Golf Clubs' },
+              { color: COLORS.purple, label: 'Golf Simulator', dashed: true },
             ]}
             footnote="Simulator interest peaks Nov–Feb when outdoor play declines. Clubs peak Jun–Aug. Two distinct consumer windows per year."
             below={
@@ -676,9 +666,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <ChartCard
             title="Golf Clubs · YoY Summer Peak Change"
             legend={[
-              { color: '#26a641', label: 'Positive YoY' },
-              { color: '#7d2025', label: 'Negative YoY' },
-              { color: 'rgba(227,179,65,0.55)', label: '2026* partial' },
+              { color: COLORS.green, label: 'Positive YoY' },
+              { color: COLORS.red, label: 'Negative YoY' },
+              { color: COLORS.gold, label: '2026* partial' },
             ]}
             footnote="YoY = current year summer peak minus prior year summer peak. 2026* uses Jan–Feb average as a partial proxy."
           >

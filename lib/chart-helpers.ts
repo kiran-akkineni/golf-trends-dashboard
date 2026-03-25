@@ -1,11 +1,31 @@
 // Chart.js global config helpers
+// Chart.js cannot read CSS variables — colors must be hardcoded hex.
+// We detect prefers-color-scheme at import time (client-side only).
+
+const isDark =
+  typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : true; // SSR fallback: assume dark
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+export const COLORS = {
+  blue:    isDark ? '#60a5fa' : '#2563eb',
+  green:   isDark ? '#4ade80' : '#16a34a',
+  teal:    isDark ? '#2dd4bf' : '#0d9488',
+  purple:  isDark ? '#a78bfa' : '#7c3aed',
+  gold:    isDark ? '#fbbf24' : '#d97706',
+  red:     isDark ? '#f87171' : '#dc2626',
+  grid:    isDark ? '#334155' : '#e2e8f0',
+  tick:    isDark ? '#94a3b8' : '#64748b',
+  surface: isDark ? '#1e293b' : '#ffffff',
+} as const;
 
 export const TOOLTIP_CONFIG = {
-  backgroundColor: '#0d1810',
-  borderColor: '#1c2e20',
+  backgroundColor: isDark ? '#0f172a' : '#1e293b',
+  borderColor: isDark ? '#334155' : '#475569',
   borderWidth: 1,
-  titleColor: '#e3b341',
-  bodyColor: '#6b8f76',
+  titleColor: isDark ? '#fbbf24' : '#f8fafc',
+  bodyColor: isDark ? '#94a3b8' : '#cbd5e1',
   padding: 10,
   titleFont: { family: "'IBM Plex Mono'" },
   bodyFont:  { family: "'IBM Plex Mono'" },
@@ -13,22 +33,50 @@ export const TOOLTIP_CONFIG = {
 
 export const SCALE_CONFIG = {
   x: {
-    ticks: { color: '#4d6b56', font: { family: "'IBM Plex Mono'", size: 10 } },
-    grid:  { color: '#1c2e20' },
+    ticks: { color: COLORS.tick, font: { family: "'IBM Plex Mono'", size: 10 } },
+    grid:  { color: COLORS.grid },
   },
   y: {
-    ticks: { color: '#4d6b56', font: { family: "'IBM Plex Mono'", size: 10 } },
-    grid:  { color: '#1c2e20' },
+    ticks: { color: COLORS.tick, font: { family: "'IBM Plex Mono'", size: 10 } },
+    grid:  { color: COLORS.grid },
     min: 0,
     max: 105,
   },
 };
 
+// Bar color tiers for the annual chart (blue ramp)
 export function barColor(value: number): string {
-  if (value >= 75) return '#39d353';
-  if (value >= 65) return '#26a641';
-  if (value >= 58) return '#1a6b2e';
-  return '#1c2e20';
+  if (isDark) {
+    if (value >= 75) return '#60a5fa';  // bright blue
+    if (value >= 65) return '#3b82f6';  // mid blue
+    if (value >= 58) return '#1d4ed8';  // deep blue
+    return '#1e3a5f';                    // muted slate-blue
+  }
+  // light mode
+  if (value >= 75) return '#2563eb';
+  if (value >= 65) return '#3b82f6';
+  if (value >= 58) return '#93c5fd';
+  return '#bfdbfe';
+}
+
+// Reference line colors (translucent)
+export const REF_LINES = {
+  prePandemic: isDark ? 'rgba(251,191,36,0.3)' : 'rgba(217,119,6,0.25)',
+  postPandemic: isDark ? 'rgba(96,165,250,0.3)' : 'rgba(37,99,235,0.25)',
+} as const;
+
+// Chart fill alphas
+export const FILLS = {
+  clubs:  isDark ? 'rgba(96,165,250,0.08)' : 'rgba(37,99,235,0.06)',
+  balls:  isDark ? 'rgba(74,222,128,0.05)' : 'rgba(22,163,74,0.04)',
+  gold55: isDark ? 'rgba(251,191,36,0.55)' : 'rgba(217,119,6,0.55)',
+} as const;
+
+// YoY delta bar colors
+export function yoyBarColor(value: number | null, partial: boolean): string {
+  if (value === null) return 'transparent';
+  if (partial) return FILLS.gold55;
+  return value >= 0 ? COLORS.green : COLORS.red;
 }
 
 // Sort object keys and return [keys, values] arrays

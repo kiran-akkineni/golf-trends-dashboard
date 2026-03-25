@@ -1,17 +1,46 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function cellStyle(value: number | null | undefined): { bg: string; color: string } {
-  if (value === null || value === undefined) return { bg: '#0d1810', color: '#1c2e20' };
-  if (value >= 90) return { bg: '#39d353', color: '#080e0a' };
-  if (value >= 80) return { bg: '#26a641', color: '#080e0a' };
-  if (value >= 70) return { bg: '#1a6b2e', color: '#cae8d0' };
-  if (value >= 60) return { bg: '#154d22', color: '#cae8d0' };
-  if (value >= 50) return { bg: '#0f3318', color: '#cae8d0' };
-  if (value >= 40) return { bg: '#0d2614', color: '#6b8f7a' };
-  if (value >= 30) return { bg: '#0a1c10', color: '#4d6b56' };
-  return { bg: '#080e0a', color: '#2a3f2d' };
+function useDarkMode() {
+  const [dark, setDark] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    setDark(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return dark;
+}
+
+function cellStyle(value: number | null | undefined, dark: boolean): { bg: string; color: string } {
+  if (value === null || value === undefined) {
+    return dark
+      ? { bg: '#1e293b', color: '#475569' }
+      : { bg: '#f1f5f9', color: '#94a3b8' };
+  }
+  if (dark) {
+    if (value >= 90) return { bg: '#2563eb', color: '#eff6ff' };
+    if (value >= 80) return { bg: '#1d4ed8', color: '#eff6ff' };
+    if (value >= 70) return { bg: '#1e40af', color: '#dbeafe' };
+    if (value >= 60) return { bg: '#1e3a8a', color: '#bfdbfe' };
+    if (value >= 50) return { bg: '#172554', color: '#93c5fd' };
+    if (value >= 40) return { bg: '#1e293b', color: '#60a5fa' };
+    if (value >= 30) return { bg: '#0f172a', color: '#3b82f6' };
+    return { bg: '#0c0f1a', color: '#1d4ed8' };
+  }
+  // light mode
+  if (value >= 90) return { bg: '#2563eb', color: '#ffffff' };
+  if (value >= 80) return { bg: '#3b82f6', color: '#ffffff' };
+  if (value >= 70) return { bg: '#60a5fa', color: '#1e3a8a' };
+  if (value >= 60) return { bg: '#93c5fd', color: '#1e3a8a' };
+  if (value >= 50) return { bg: '#bfdbfe', color: '#1e40af' };
+  if (value >= 40) return { bg: '#dbeafe', color: '#1e40af' };
+  if (value >= 30) return { bg: '#eff6ff', color: '#3b82f6' };
+  return { bg: '#f8fafc', color: '#93c5fd' };
 }
 
 interface HeatmapProps {
@@ -19,6 +48,7 @@ interface HeatmapProps {
 }
 
 export default function Heatmap({ monthly }: HeatmapProps) {
+  const dark = useDarkMode();
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth(); // 0-indexed
@@ -48,7 +78,7 @@ export default function Heatmap({ monthly }: HeatmapProps) {
                 const isFuture = isCurrent && mi > currentMonth;
                 const value = isFuture ? null : (monthly[key] ?? null);
                 const isNull = value === null;
-                const { bg, color } = cellStyle(value);
+                const { bg, color } = cellStyle(value, dark);
 
                 return (
                   <div
