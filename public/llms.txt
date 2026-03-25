@@ -1,0 +1,56 @@
+# Golf Search Volume Dashboard
+
+> A live, auto-updating dashboard tracking Google Trends search interest for golf-related terms in the United States. Data refreshes daily. Charts cover annual trends, quarterly breakdowns, monthly equipment interest, seasonal patterns, and year-over-year changes from 2017 to present.
+
+## What This Site Provides
+
+This dashboard visualizes normalized Google Trends search volume (0–100 scale) for six golf-related search terms: "golf clubs", "golf balls", "golf bags", "golf", "golf equipment", and "golf simulator". All data is US-geography, fetched under a single timeframe window to preserve cross-term comparability. The dashboard is designed for golf industry analysts, retailers, content marketers, and anyone researching golf participation trends.
+
+## Key Findings
+
+- Golf search interest peaked in 2021 (pandemic golf boom), with "golf clubs" reaching a normalized index of 100 in June 2021.
+- Post-pandemic normalization settled around a "new normal" roughly 29% above pre-pandemic (2017–2019) baselines.
+- Strong seasonality: equipment search peaks May–August, troughs December–February.
+- "Golf simulator" shows inverse seasonality, peaking November–February during the off-season.
+- Holiday gifting creates a November anomaly for "golf bags" search volume.
+- The TGL (TGL simulator league) launched January 2025, contributing to structural growth in off-season golf simulator search interest.
+
+## Data & Methodology
+
+- Source: Google Trends (US, normalized 0–100 scale)
+- Refresh: Daily at 06:00 UTC via automated pipeline
+- Granularity: Weekly raw data aggregated to monthly, quarterly, and annual views
+- Timeframe: 2017–present (5-year rolling window plus historical estimates)
+- Monthly bucketing: Weekly data points averaged by calendar month; months with fewer than 2 data points are marked null
+- Quarterly values: Average of 3 constituent monthly values
+- Annual values: Average of 12 monthly values
+- Summer peak: Maximum of June, July, August for each year
+- Partial-year data (current calendar year) is labeled with an asterisk
+
+## Sections
+
+- [Long-Run Annual Trend](/): Bar chart of annual average search interest for "golf clubs" with summer peak overlay and pre/post-pandemic reference lines (2017–present)
+- [Quarterly Time Series](/): Multi-series line chart comparing "golf", "golf clubs", "golf equipment", and "golf simulator" by quarter
+- [Monthly Equipment Detail](/): Recent 24-month line chart for "golf clubs", "golf balls", and "golf bags" with peak detection
+- [Simulator vs. Clubs Seasonality](/): Dual-series chart showing inverse seasonal patterns between equipment search and simulator search
+- [Seasonal Heatmap](/): Month-by-year heatmap of "golf clubs" search intensity with color-coded cells
+- [Year-over-Year Delta](/): Bar chart of annual summer peak changes vs. prior year
+
+## API
+
+- `GET /api/data` — Returns current trends data in JSON format. Fields: `source` ("live" or "seed"), `stale` (boolean), `lastUpdated` (ISO 8601), `data` (monthly, quarterly, annual breakdowns). No authentication required.
+
+## Terms Tracked
+
+| Term | Category | Notes |
+|---|---|---|
+| golf clubs | Equipment | Primary indicator of purchase intent |
+| golf balls | Equipment | Consumable; tracks active play |
+| golf bags | Equipment | Lower volume; holiday gifting spikes in November |
+| golf | Broad | Overall participation and interest proxy |
+| golf equipment | Broad | Aggregated equipment interest |
+| golf simulator | Counter-seasonal | Peaks in winter; structural growth trend |
+
+## Contact
+
+For questions about methodology or data access, see the methodological footnotes on the dashboard page.

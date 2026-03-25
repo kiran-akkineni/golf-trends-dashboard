@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/refresh
+Allow: /api/data
+
+Sitemap: https://golftrends.example.com/sitemap.xml
