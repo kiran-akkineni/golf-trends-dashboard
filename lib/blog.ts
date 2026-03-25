@@ -30,7 +30,7 @@ export function getAllSlugs(): string[] {
   if (!fs.existsSync(BLOG_DIR)) return [];
   return fs
     .readdirSync(BLOG_DIR)
-    .filter((f) => f.endsWith('.md'))
+    .filter((f) => f.endsWith('.md') && !f.startsWith('_'))
     .map((f) => f.replace(/\.md$/, ''));
 }
 
@@ -40,7 +40,7 @@ export function getAllSlugs(): string[] {
 export function getAllPosts(): BlogPostMeta[] {
   if (!fs.existsSync(BLOG_DIR)) return [];
 
-  const files = fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.md'));
+  const files = fs.readdirSync(BLOG_DIR).filter((f) => f.endsWith('.md') && !f.startsWith('_'));
 
   const posts: BlogPostMeta[] = files.map((filename) => {
     const slug = filename.replace(/\.md$/, '');
