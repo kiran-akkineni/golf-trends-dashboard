@@ -1,6 +1,6 @@
 # Golf Search Volume Dashboard — Full Context
 
-> A live, auto-updating dashboard tracking Google Trends search interest for golf-related terms in the United States. Data refreshes daily at 06:00 UTC. Six Chart.js visualizations cover annual trends (2017–present), quarterly breakdowns, monthly equipment interest, inverse seasonality patterns, a seasonal heatmap, and year-over-year delta analysis.
+> A live, auto-updating dashboard tracking Google Trends search interest for golf-related terms in the United States. Data refreshes weekly on Mondays at 07:00 UTC. Six Chart.js visualizations cover annual trends (2017–present), quarterly breakdowns, monthly equipment interest, inverse seasonality patterns, a seasonal heatmap, and year-over-year delta analysis.
 
 ## What This Site Provides
 
@@ -48,7 +48,7 @@ The TGL (Tomorrow's Golf League), a simulator-based professional golf league, la
 ## Data & Methodology
 
 - Source: Google Trends (US, normalized 0–100 scale)
-- Refresh: Daily at 06:00 UTC via automated pipeline
+- Refresh: Weekly on Mondays at 07:00 UTC via automated pipeline
 - Granularity: Weekly raw data aggregated to monthly, quarterly, and annual views
 - Timeframe: 2017–present (5-year rolling window plus historical estimates)
 - Monthly bucketing: Weekly data points averaged by calendar month; months with fewer than 2 data points are marked null

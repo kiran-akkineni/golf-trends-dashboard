@@ -1,6 +1,6 @@
 # Golf Search Volume Dashboard
 
-> A live, auto-updating dashboard tracking Google Trends search interest for golf-related terms in the United States. Data refreshes daily. Charts cover annual trends, quarterly breakdowns, monthly equipment interest, seasonal patterns, and year-over-year changes from 2017 to present.
+> A live, auto-updating dashboard tracking Google Trends search interest for golf-related terms in the United States. Data refreshes weekly on Mondays. Charts cover annual trends, quarterly breakdowns, monthly equipment interest, seasonal patterns, and year-over-year changes from 2017 to present.
 
 ## What This Site Provides
 
@@ -18,7 +18,7 @@ This dashboard visualizes normalized Google Trends search volume (0–100 scale)
 ## Data & Methodology
 
 - Source: Google Trends (US, normalized 0–100 scale)
-- Refresh: Daily at 06:00 UTC via automated pipeline
+- Refresh: Weekly on Mondays at 07:00 UTC via automated pipeline
 - Granularity: Weekly raw data aggregated to monthly, quarterly, and annual views
 - Timeframe: 2017–present (5-year rolling window plus historical estimates)
 - Monthly bucketing: Weekly data points averaged by calendar month; months with fewer than 2 data points are marked null
