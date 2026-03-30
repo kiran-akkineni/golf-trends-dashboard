@@ -490,3 +490,69 @@ h2.section-label {
 .meta-blog-link:hover {
   color: var(--gold);
 }
+/* ── OEM Rank Row (Chart 7) ─────────────────────────────────────────────────── */
+/* Add these rules to the end of globals.css */
+
+.oem-rank-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .oem-rank-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .oem-rank-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.oem-rank-card {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.oem-rank-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+}
+
+.oem-rank-name {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oem-rank-value {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.oem-rank-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 0.05em;
+}

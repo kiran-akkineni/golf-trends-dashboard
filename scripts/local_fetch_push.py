@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Fetches Google Trends data directly (no pytrends) and pushes to Upstash Redis.
+Fetches category terms + OEM brand terms, one at a time with randomized delays.
 """
 
 import json, time, random, sys, os, urllib.request, urllib.parse
@@ -10,7 +11,27 @@ UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 TTL_SECONDS   = 86400 * 8
 
-TERMS = ["golf clubs","golf balls","golf bags","golf","golf equipment","golf simulator"]
+# ── Terms ──────────────────────────────────────────────────────────────────────
+# Category terms (unchanged)
+CATEGORY_TERMS = [
+    "golf clubs",
+    "golf balls",
+    "golf bags",
+    "golf",
+    "golf equipment",
+    "golf simulator",
+]
+
+# OEM brand terms — fetched in the same window for comparability
+OEM_TERMS = [
+    "callaway golf",
+    "taylormade golf",
+    "titleist",
+    "ping golf",
+    "mizuno golf",
+]
+
+TERMS = CATEGORY_TERMS + OEM_TERMS
 
 if not UPSTASH_URL or not UPSTASH_TOKEN:
     print("ERROR: Missing Upstash env vars.")
@@ -55,7 +76,6 @@ def get_series(token, request):
     result = {}
     for pt in data.get("default", {}).get("timelineData", []):
         date = time.strftime("%Y-%m-%d", time.gmtime(int(pt["time"])))
-        # value can be list of dicts OR list of ints depending on API version
         val = pt["value"][0]
         if isinstance(val, dict):
             result[date] = val.get("extractedValue", 0)
@@ -64,50 +84,52 @@ def get_series(token, request):
     return result
 
 def monthly_bucket(data):
-    """Convert weekly or monthly data to monthly buckets."""
     from collections import defaultdict
     b = defaultdict(list)
     for d, v in data.items():
         b[d[:7]].append(v)
-    # If only 1 point per month (already monthly granularity), accept it directly
-    return {k: round(sum(v)/len(v)) for k,v in b.items()}
+    return {k: round(sum(v)/len(v)) for k, v in b.items()}
 
 def to_quarterly(m):
     from collections import defaultdict
     import math
     b = defaultdict(list)
-    for k,v in m.items():
+    for k, v in m.items():
         if v is None: continue
-        yr,mo = k.split("-")
+        yr, mo = k.split("-")
         b[f"{yr}-Q{math.ceil(int(mo)/3)}"].append(v)
-    return {k: round(sum(v)/len(v)) for k,v in b.items() if len(v)==3}
+    return {k: round(sum(v)/len(v)) for k, v in b.items() if len(v) == 3}
 
 def to_annual(m):
     from collections import defaultdict
     b = defaultdict(list)
-    for k,v in m.items():
+    for k, v in m.items():
         if v is None: continue
         b[k[:4]].append(v)
-    return {k: round(sum(v)/len(v)) for k,v in b.items() if len(v)>=6}
+    return {k: round(sum(v)/len(v)) for k, v in b.items() if len(v) >= 6}
 
 def to_summer_peak(m):
     from collections import defaultdict
     b = defaultdict(list)
-    for k,v in m.items():
+    for k, v in m.items():
         if v is None: continue
-        yr,mo = k.split("-")
-        if int(mo) in (6,7,8): b[yr].append(v)
-    return {k: max(v) for k,v in b.items() if len(v)==3}
+        yr, mo = k.split("-")
+        if int(mo) in (6, 7, 8): b[yr].append(v)
+    return {k: max(v) for k, v in b.items() if len(v) == 3}
 
 def upstash_set(key, value, ttl):
-    # Use SETEX command: POST /setex/key/ttl/value
     encoded_key = urllib.parse.quote(str(key), safe='')
     url = f"{UPSTASH_URL}/setex/{encoded_key}/{ttl}"
     body = value.encode('utf-8') if isinstance(value, str) else str(value).encode('utf-8')
     print(f"  Writing {key} ({len(body)} bytes) to Upstash...")
-    req = urllib.request.Request(url, data=body,
-        headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/octet-stream"},
-        method="POST")
+    req = urllib.request.Request(
+        url, data=body,
+        headers={
+            "Authorization": f"Bearer {UPSTASH_TOKEN}",
+            "Content-Type": "application/octet-stream",
+        },
+        method="POST"
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read())
@@ -117,7 +139,7 @@ def upstash_set(key, value, ttl):
         print(f"  Upstash ERROR: {e}")
         raise
 
-# ── Warm up session with a page visit first ───────────────────────────────────
+# ── Warm up session ────────────────────────────────────────────────────────────
 print("Warming up session...")
 try:
     session.get("https://trends.google.com/trends/explore", timeout=15)
@@ -125,10 +147,16 @@ try:
 except Exception as e:
     print(f"  warm-up warning: {e}")
 
-# ── Fetch ─────────────────────────────────────────────────────────────────────
-print("Fetching Google Trends data...")
+# ── Fetch all terms ────────────────────────────────────────────────────────────
+print(f"Fetching Google Trends data ({len(TERMS)} terms)...")
 raw = {}
 for i, term in enumerate(TERMS):
+    # Brief section header for readability in CI logs
+    if term == CATEGORY_TERMS[0]:
+        print("\n── Category terms ──")
+    elif term == OEM_TERMS[0]:
+        print("\n── OEM brand terms ──")
+
     print(f"({i+1}/{len(TERMS)}) {term}...", end=" ", flush=True)
     retries = 2
     for attempt in range(retries):
@@ -148,33 +176,63 @@ for i, term in enumerate(TERMS):
             else:
                 print(f"✗ {e}")
                 raw[term] = {}
-    if i < len(TERMS)-1:
+    if i < len(TERMS) - 1:
         delay = random.uniform(4.0, 7.0)
         print(f"  sleeping {delay:.1f}s...")
         time.sleep(delay)
 
-term_map = {"golf clubs":"golfClubs","golf balls":"golfBalls","golf bags":"golfBags",
-            "golf":"golf","golf equipment":"golfEquipment","golf simulator":"golfSimulator"}
+# ── Map raw terms → camelCase keys ────────────────────────────────────────────
+term_map = {
+    # Category terms
+    "golf clubs":      "golfClubs",
+    "golf balls":      "golfBalls",
+    "golf bags":       "golfBags",
+    "golf":            "golf",
+    "golf equipment":  "golfEquipment",
+    "golf simulator":  "golfSimulator",
+    # OEM brand terms
+    "callaway golf":   "callaway",
+    "taylormade golf": "taylormade",
+    "titleist":        "titleist",
+    "ping golf":       "ping",
+    "mizuno golf":     "mizuno",
+}
 
-monthly = {v: monthly_bucket(raw.get(k,{})) for k,v in term_map.items()}
+monthly = {v: monthly_bucket(raw.get(k, {})) for k, v in term_map.items()}
 fetched = sum(1 for v in monthly.values() if v)
-print(f"\nTerms with data: {fetched}/6")
+print(f"\nTerms with data: {fetched}/{len(TERMS)}")
 if fetched == 0:
     print("ERROR: No data fetched.")
     sys.exit(1)
 
 clubs = monthly["golfClubs"]
+
 payload = {
-    "source": "live", "stale": False,
+    "source": "live",
+    "stale": False,
     "lastUpdated": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
     "data": {
         "monthly": monthly,
-        "quarterly": {k: to_quarterly(monthly[k]) for k in ["golfClubs","golf","golfEquipment","golfSimulator"]},
-        "annual": {"golfClubs": to_annual(clubs), "summerPeak": to_summer_peak(clubs)},
+        "quarterly": {
+            k: to_quarterly(monthly[k])
+            for k in [
+                "golfClubs", "golf", "golfEquipment", "golfSimulator",
+                "callaway", "taylormade", "titleist", "ping", "mizuno",
+            ]
+        },
+        "annual": {
+            "golfClubs":  to_annual(clubs),
+            "summerPeak": to_summer_peak(clubs),
+            "callaway":   to_annual(monthly["callaway"]),
+            "taylormade": to_annual(monthly["taylormade"]),
+            "titleist":   to_annual(monthly["titleist"]),
+            "ping":       to_annual(monthly["ping"]),
+            "mizuno":     to_annual(monthly["mizuno"]),
+        },
     },
 }
 
-print("Pushing to Redis...")
+print("\nPushing to Redis...")
 upstash_set("golf_trends_data", json.dumps(payload), TTL_SECONDS)
-upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS+3600)
+upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS + 3600)
 print("✓ Done! Dashboard will now serve live data.")

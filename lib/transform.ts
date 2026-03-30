@@ -21,7 +21,7 @@ export function weeklyToMonthly(
   const result: Record<string, number | null> = {};
   for (const [key, vals] of Object.entries(monthBuckets)) {
     if (vals.length < 2) {
-      result[key] = null; // insufficient data
+      result[key] = null;
     } else {
       result[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
@@ -108,17 +108,24 @@ export function buildTrendsResponse(
   lastUpdated: string | null = new Date().toISOString()
 ): TrendsResponse {
   const termMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
-    'golf clubs':     'golfClubs',
-    'golf balls':     'golfBalls',
-    'golf bags':      'golfBags',
-    'golf':           'golf',
-    'golf equipment': 'golfEquipment',
-    'golf simulator': 'golfSimulator',
+    'golf clubs':        'golfClubs',
+    'golf balls':        'golfBalls',
+    'golf bags':         'golfBags',
+    'golf':              'golf',
+    'golf equipment':    'golfEquipment',
+    'golf simulator':    'golfSimulator',
+    // OEM brands
+    'callaway golf':     'callaway',
+    'taylormade golf':   'taylormade',
+    'titleist':          'titleist',
+    'ping golf':         'ping',
+    'mizuno golf':       'mizuno',
   };
 
   const monthly: TrendsResponse['data']['monthly'] = {
     golfClubs: {}, golfBalls: {}, golfBags: {},
     golf: {}, golfEquipment: {}, golfSimulator: {},
+    callaway: {}, taylormade: {}, titleist: {}, ping: {}, mizuno: {},
   };
 
   for (const [term, key] of Object.entries(termMap)) {
@@ -138,10 +145,20 @@ export function buildTrendsResponse(
         golf:          monthlyToQuarterly(monthly.golf),
         golfEquipment: monthlyToQuarterly(monthly.golfEquipment),
         golfSimulator: monthlyToQuarterly(monthly.golfSimulator),
+        callaway:      monthlyToQuarterly(monthly.callaway),
+        taylormade:    monthlyToQuarterly(monthly.taylormade),
+        titleist:      monthlyToQuarterly(monthly.titleist),
+        ping:          monthlyToQuarterly(monthly.ping),
+        mizuno:        monthlyToQuarterly(monthly.mizuno),
       },
       annual: {
         golfClubs:  monthlyToAnnual(monthly.golfClubs),
         summerPeak: monthlyToSummerPeak(monthly.golfClubs),
+        callaway:   monthlyToAnnual(monthly.callaway),
+        taylormade: monthlyToAnnual(monthly.taylormade),
+        titleist:   monthlyToAnnual(monthly.titleist),
+        ping:       monthlyToAnnual(monthly.ping),
+        mizuno:     monthlyToAnnual(monthly.mizuno),
       },
     },
   };

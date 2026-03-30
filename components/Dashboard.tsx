@@ -518,7 +518,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <span>Geography: United States</span>
                 <span>Compiled: {new Date().getFullYear()}</span>
                 <span>Index: Relative (100 = peak)</span>
-                <a href="/blog" className="meta-blog-link">Weekly Insights →</a>
               </div>
             </div>
             <StaleIndicator
@@ -781,7 +780,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
             directly comparable; all series in this dashboard are fetched under the same
             timeframe window to preserve comparability. Quarterly and annual values are derived
             by averaging constituent monthly values. Summer peak = maximum of June, July, August
-            for each year. Data refreshes weekly on Mondays at 07:00 UTC. When live data is unavailable,
+            for each year. Data refreshes daily at 06:00 UTC. When live data is unavailable,
             the dashboard serves seed data estimated from published industry reports, confirmed
             by Accio.com&apos;s direct Google Trends export (key anchors:{' '}
             <strong>&quot;golf clubs&quot; Aug 2025 = 91, Feb 2025 = 29; &quot;golf balls&quot; Aug 2025 = 46</strong>).
