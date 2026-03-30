@@ -308,9 +308,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
       data: {
         labels: allQKeys.map(fmtQuarterLabel),
         datasets: [
-          { label: 'Callaway Golf', data: allQKeys.map((k) => quarterly.callaway?.[k] ?? null),
+          { label: 'Callaway', data: allQKeys.map((k) => quarterly.callaway?.[k] ?? null),
             borderColor: '#e3b341', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'TaylorMade Golf', data: allQKeys.map((k) => quarterly.taylormade?.[k] ?? null),
+          { label: 'TaylorMade', data: allQKeys.map((k) => quarterly.taylormade?.[k] ?? null),
             borderColor: '#39d353', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
           { label: 'Titleist', data: allQKeys.map((k) => quarterly.titleist?.[k] ?? null),
             borderColor: '#58a6ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
@@ -416,8 +416,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
       ...Object.keys(quarterly.mizuno     ?? {}),
     ])).sort();
     downloadCsv('golf-oem-brands-quarterly.csv', keys, [
-      { label: 'Callaway Golf',  values: keys.map((k) => quarterly.callaway?.[k]   ?? null) },
-      { label: 'TaylorMade Golf', values: keys.map((k) => quarterly.taylormade?.[k] ?? null) },
+      { label: 'Callaway',  values: keys.map((k) => quarterly.callaway?.[k]   ?? null) },
+      { label: 'TaylorMade', values: keys.map((k) => quarterly.taylormade?.[k] ?? null) },
       { label: 'Titleist',       values: keys.map((k) => quarterly.titleist?.[k]   ?? null) },
       { label: 'Ping',           values: keys.map((k) => quarterly.ping?.[k]        ?? null) },
       { label: 'Mizuno',         values: keys.map((k) => quarterly.mizuno?.[k]      ?? null) },
@@ -463,7 +463,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
     .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
 
   const oemDisplayName: Record<string, string> = {
-    callaway: 'Callaway Golf', taylormade: 'TaylorMade Golf',
+    callaway: 'Callaway', taylormade: 'TaylorMade',
     titleist: 'Titleist', ping: 'Ping', mizuno: 'Mizuno',
   };
 

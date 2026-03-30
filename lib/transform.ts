@@ -115,11 +115,11 @@ export function buildTrendsResponse(
     'golf equipment':    'golfEquipment',
     'golf simulator':    'golfSimulator',
     // OEM brands
-    'callaway golf':     'callaway',
-    'taylormade golf':   'taylormade',
+    'callaway':       'callaway',
+    'taylormade':    'taylormade',
     'titleist':          'titleist',
-    'ping golf':         'ping',
-    'mizuno golf':       'mizuno',
+    'ping':           'ping',
+    'mizuno':         'mizuno',
   };
 
   const monthly: TrendsResponse['data']['monthly'] = {
