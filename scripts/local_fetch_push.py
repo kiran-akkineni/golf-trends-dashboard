@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Fetches Google Trends data directly (no pytrends) and pushes to Upstash Redis.
-Fetches category terms + OEM brand terms, one at a time with randomized delays.
+Category terms use category=0 (All). OEM brand terms use category=626 (Golf)
+so that 'ping', 'mizuno' etc. resolve to the golf brands, not unrelated results.
 """
 
 import json, time, random, sys, os, urllib.request, urllib.parse
@@ -12,7 +13,6 @@ UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 TTL_SECONDS   = 86400 * 8
 
 # ── Terms ──────────────────────────────────────────────────────────────────────
-# Category terms (unchanged)
 CATEGORY_TERMS = [
     "golf clubs",
     "golf balls",
@@ -22,16 +22,18 @@ CATEGORY_TERMS = [
     "golf simulator",
 ]
 
-# OEM brand terms — fetched in the same window for comparability
+# Shorter brand names — disambiguation handled by category=626 (Golf)
 OEM_TERMS = [
-    "callaway golf",
-    "taylormade golf",
+    "callaway",
+    "taylormade",
     "titleist",
-    "ping golf",
-    "mizuno golf",
+    "ping",
+    "mizuno",
 ]
 
 TERMS = CATEGORY_TERMS + OEM_TERMS
+
+GOOGLE_TRENDS_CATEGORY_GOLF = 261   # Sports > Individual Sports > Golf
 
 if not UPSTASH_URL or not UPSTASH_TOKEN:
     print("ERROR: Missing Upstash env vars.")
@@ -51,15 +53,16 @@ session.headers.update(HEADERS)
 def strip_xssi(text):
     return text.lstrip(")]}',\n").strip()
 
-def get_token(term, timeframe="2017-01-01 2026-03-18", geo="US"):
+def get_token(term, timeframe, geo="US", category=0):
     req_body = json.dumps({
         "comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}],
-        "category": 0, "property": ""
+        "category": category,
+        "property": ""
     })
     params = {"hl": "en-US", "tz": "360", "req": req_body}
     r = session.get(f"{BASE}/trends/api/explore", params=params, timeout=30)
     if r.status_code == 429:
-        raise Exception(f"429 rate limited")
+        raise Exception("429 rate limited")
     r.raise_for_status()
     data = json.loads(strip_xssi(r.text))
     widgets = data.get("widgets", [])
@@ -77,10 +80,7 @@ def get_series(token, request):
     for pt in data.get("default", {}).get("timelineData", []):
         date = time.strftime("%Y-%m-%d", time.gmtime(int(pt["time"])))
         val = pt["value"][0]
-        if isinstance(val, dict):
-            result[date] = val.get("extractedValue", 0)
-        else:
-            result[date] = int(val)
+        result[date] = val.get("extractedValue", 0) if isinstance(val, dict) else int(val)
     return result
 
 def monthly_bucket(data):
@@ -124,22 +124,15 @@ def upstash_set(key, value, ttl):
     print(f"  Writing {key} ({len(body)} bytes) to Upstash...")
     req = urllib.request.Request(
         url, data=body,
-        headers={
-            "Authorization": f"Bearer {UPSTASH_TOKEN}",
-            "Content-Type": "application/octet-stream",
-        },
+        headers={"Authorization": f"Bearer {UPSTASH_TOKEN}", "Content-Type": "application/octet-stream"},
         method="POST"
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-            print(f"  Upstash response: {result}")
-            return result
-    except Exception as e:
-        print(f"  Upstash ERROR: {e}")
-        raise
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
+        print(f"  Upstash response: {result}")
+        return result
 
-# ── Warm up session ────────────────────────────────────────────────────────────
+# ── Warm up ────────────────────────────────────────────────────────────────────
 print("Warming up session...")
 try:
     session.get("https://trends.google.com/trends/explore", timeout=15)
@@ -147,22 +140,25 @@ try:
 except Exception as e:
     print(f"  warm-up warning: {e}")
 
-# ── Fetch all terms ────────────────────────────────────────────────────────────
+# ── Fetch ──────────────────────────────────────────────────────────────────────
 print(f"Fetching Google Trends data ({len(TERMS)} terms)...")
 raw = {}
+
 for i, term in enumerate(TERMS):
-    # Brief section header for readability in CI logs
     if term == CATEGORY_TERMS[0]:
-        print("\n── Category terms ──")
+        print("\n── Category terms (category=0: All) ──")
     elif term == OEM_TERMS[0]:
-        print("\n── OEM brand terms ──")
+        print(f"\n── OEM brand terms (category={GOOGLE_TRENDS_CATEGORY_GOLF}: Golf) ──")
+
+    is_oem = term in OEM_TERMS
+    cat = GOOGLE_TRENDS_CATEGORY_GOLF if is_oem else 0
 
     print(f"({i+1}/{len(TERMS)}) {term}...", end=" ", flush=True)
     retries = 2
     for attempt in range(retries):
         try:
             today = time.strftime("%Y-%m-%d", time.gmtime())
-            token, request = get_token(term, timeframe=f"2017-01-01 {today}")
+            token, request = get_token(term, timeframe=f"2017-01-01 {today}", category=cat)
             time.sleep(1 + random.random())
             series = get_series(token, request)
             raw[term] = series
@@ -181,21 +177,20 @@ for i, term in enumerate(TERMS):
         print(f"  sleeping {delay:.1f}s...")
         time.sleep(delay)
 
-# ── Map raw terms → camelCase keys ────────────────────────────────────────────
+# ── Map → camelCase ────────────────────────────────────────────────────────────
 term_map = {
-    # Category terms
-    "golf clubs":      "golfClubs",
-    "golf balls":      "golfBalls",
-    "golf bags":       "golfBags",
-    "golf":            "golf",
-    "golf equipment":  "golfEquipment",
-    "golf simulator":  "golfSimulator",
-    # OEM brand terms
-    "callaway golf":   "callaway",
-    "taylormade golf": "taylormade",
-    "titleist":        "titleist",
-    "ping golf":       "ping",
-    "mizuno golf":     "mizuno",
+    "golf clubs":     "golfClubs",
+    "golf balls":     "golfBalls",
+    "golf bags":      "golfBags",
+    "golf":           "golf",
+    "golf equipment": "golfEquipment",
+    "golf simulator": "golfSimulator",
+    # OEM — short names, disambiguated by Golf category
+    "callaway":       "callaway",
+    "taylormade":     "taylormade",
+    "titleist":       "titleist",
+    "ping":           "ping",
+    "mizuno":         "mizuno",
 }
 
 monthly = {v: monthly_bucket(raw.get(k, {})) for k, v in term_map.items()}
@@ -215,10 +210,8 @@ payload = {
         "monthly": monthly,
         "quarterly": {
             k: to_quarterly(monthly[k])
-            for k in [
-                "golfClubs", "golf", "golfEquipment", "golfSimulator",
-                "callaway", "taylormade", "titleist", "ping", "mizuno",
-            ]
+            for k in ["golfClubs", "golf", "golfEquipment", "golfSimulator",
+                      "callaway", "taylormade", "titleist", "ping", "mizuno"]
         },
         "annual": {
             "golfClubs":  to_annual(clubs),
