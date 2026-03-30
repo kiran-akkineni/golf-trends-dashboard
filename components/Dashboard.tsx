@@ -571,7 +571,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           },
           y: {
             ...SCALE_CONFIG.y,
-            max: 55,   // OEM indices top out ~40-42; headroom to 55 keeps chart readable
+            max: 105,
             ticks: {
               ...SCALE_CONFIG.y.ticks,
               stepSize: 10,
