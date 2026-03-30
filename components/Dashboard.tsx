@@ -35,8 +35,9 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const c3 = useRef<HTMLCanvasElement>(null);
   const c4 = useRef<HTMLCanvasElement>(null);
   const c6 = useRef<HTMLCanvasElement>(null);
+  const c7 = useRef<HTMLCanvasElement>(null);
 
-  // Chart instance refs — typed as `any` to avoid complex generics from dynamic import
+  // Chart instance refs
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst1 = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,6 +48,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const inst4 = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst6 = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inst7 = useRef<any>(null);
 
   // Load Chart.js once
   useEffect(() => {
@@ -178,7 +181,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
       ])
     ).sort();
 
-    // Only include quarters where at least one series has data
     const labels = allQKeys.map(fmtQuarterLabel);
 
     inst2.current = new Chart(c2.current, {
@@ -257,7 +259,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
     const bagsVals  = keys.map((k) => monthly.golfBags[k] ?? null);
     const labels    = keys.map(fmtMonthLabel);
 
-    // Peak detection
     const clubPeakIdx = clubsVals.reduce((mi, v, i) => (v ?? 0) > (clubsVals[mi] ?? 0) ? i : mi, 0);
     const ballPeakIdx = ballsVals.reduce((mi, v, i) => (v ?? 0) > (ballsVals[mi] ?? 0) ? i : mi, 0);
     const bagsPeakIdx = bagsVals.reduce((mi, v, i) => (v ?? 0) > (bagsVals[mi] ?? 0) ? i : mi, 0);
@@ -459,6 +460,132 @@ export default function Dashboard({ initialData }: DashboardProps) {
     });
   }, [data]);
 
+  // ── Chart 7: OEM Brand Quarterly ────────────────────────────────────────────
+  const buildChart7 = useCallback(() => {
+    const Chart = ChartRef.current;
+    if (!Chart || !c7.current) return;
+    destroy(inst7);
+
+    const { quarterly } = data.data;
+
+    // Union of all OEM quarter keys, sorted
+    const allQKeys = Array.from(
+      new Set([
+        ...Object.keys(quarterly.callaway   ?? {}),
+        ...Object.keys(quarterly.taylormade ?? {}),
+        ...Object.keys(quarterly.titleist   ?? {}),
+        ...Object.keys(quarterly.ping       ?? {}),
+        ...Object.keys(quarterly.mizuno     ?? {}),
+      ])
+    ).sort();
+
+    const labels = allQKeys.map(fmtQuarterLabel);
+
+    // OEM color palette — distinct from the category chart colors
+    const OEM_COLORS = {
+      callaway:   { line: '#e3b341', dash: undefined },           // gold  — Callaway (largest)
+      taylormade: { line: '#39d353', dash: undefined },           // green — TaylorMade
+      titleist:   { line: '#58a6ff', dash: undefined },           // blue  — Titleist
+      ping:       { line: '#f0883e', dash: [4, 2] as number[] },  // orange — Ping
+      mizuno:     { line: '#bc8cff', dash: [6, 3] as number[] },  // purple — Mizuno
+    };
+
+    inst7.current = new Chart(c7.current, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Callaway Golf',
+            data: allQKeys.map((k) => quarterly.callaway?.[k] ?? null),
+            borderColor: OEM_COLORS.callaway.line,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'TaylorMade Golf',
+            data: allQKeys.map((k) => quarterly.taylormade?.[k] ?? null),
+            borderColor: OEM_COLORS.taylormade.line,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Titleist',
+            data: allQKeys.map((k) => quarterly.titleist?.[k] ?? null),
+            borderColor: OEM_COLORS.titleist.line,
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Ping',
+            data: allQKeys.map((k) => quarterly.ping?.[k] ?? null),
+            borderColor: OEM_COLORS.ping.line,
+            backgroundColor: 'transparent',
+            borderDash: OEM_COLORS.ping.dash,
+            borderWidth: 1.5,
+            pointRadius: 1.5,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Mizuno',
+            data: allQKeys.map((k) => quarterly.mizuno?.[k] ?? null),
+            borderColor: OEM_COLORS.mizuno.line,
+            backgroundColor: 'transparent',
+            borderDash: OEM_COLORS.mizuno.dash,
+            borderWidth: 1.5,
+            pointRadius: 1.5,
+            tension: 0.3,
+            spanGaps: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TOOLTIP_CONFIG,
+            mode: 'index',
+            intersect: false,
+          },
+        },
+        scales: {
+          x: {
+            ...SCALE_CONFIG.x,
+            ticks: {
+              ...SCALE_CONFIG.x.ticks,
+              maxRotation: 45,
+              font: { family: "'IBM Plex Mono'", size: 9 },
+            },
+          },
+          y: {
+            ...SCALE_CONFIG.y,
+            max: 55,   // OEM indices top out ~40-42; headroom to 55 keeps chart readable
+            ticks: {
+              ...SCALE_CONFIG.y.ticks,
+              stepSize: 10,
+            },
+          },
+        },
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+      },
+    });
+  }, [data]);
+
   // ── Build / rebuild all charts when data + Chart.js are ready ────────────────
   useEffect(() => {
     if (!chartJsReady) return;
@@ -467,11 +594,12 @@ export default function Dashboard({ initialData }: DashboardProps) {
     buildChart3();
     buildChart4();
     buildChart6();
+    buildChart7();
     return () => {
       destroy(inst1); destroy(inst2); destroy(inst3);
-      destroy(inst4); destroy(inst6);
+      destroy(inst4); destroy(inst6); destroy(inst7);
     };
-  }, [chartJsReady, buildChart1, buildChart2, buildChart3, buildChart4, buildChart6]);
+  }, [chartJsReady, buildChart1, buildChart2, buildChart3, buildChart4, buildChart6, buildChart7]);
 
   // ── Derived callout stats ───────────────────────────────────────────────────
   const { annual } = data.data;
@@ -492,16 +620,49 @@ export default function Dashboard({ initialData }: DashboardProps) {
     ? `+${newNormalAvg - prePandemicAvg} vs pre-pandemic avg`
     : null;
 
-  // Compute percentage increase for prose block
-  const pctIncrease = (newNormalAvg && prePandemicAvg)
-    ? Math.round(((newNormalAvg - prePandemicAvg) / prePandemicAvg) * 100)
-    : null;
+  // ── OEM callout stats — latest full year annual averages ─────────────────────
+  const oemLatestYear = (() => {
+    const candidates = ['2025', '2024', '2023'];
+    for (const y of candidates) {
+      if (annual.callaway?.[y]) return y;
+    }
+    return '2024';
+  })();
+
+  const oemStats = {
+    callaway:   annual.callaway?.[oemLatestYear]   ?? null,
+    taylormade: annual.taylormade?.[oemLatestYear] ?? null,
+    titleist:   annual.titleist?.[oemLatestYear]   ?? null,
+    ping:       annual.ping?.[oemLatestYear]        ?? null,
+    mizuno:     annual.mizuno?.[oemLatestYear]      ?? null,
+  };
+
+  // Rank brands by latest annual avg for the callout labels
+  const oemRanked = (Object.entries(oemStats) as [string, number | null][])
+    .filter(([, v]) => v !== null)
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
+
+  const oemDisplayName: Record<string, string> = {
+    callaway: 'Callaway Golf',
+    taylormade: 'TaylorMade Golf',
+    titleist: 'Titleist',
+    ping: 'Ping',
+    mizuno: 'Mizuno',
+  };
+
+  const oemColor: Record<string, string> = {
+    callaway: '#e3b341',
+    taylormade: '#39d353',
+    titleist: '#58a6ff',
+    ping: '#f0883e',
+    mizuno: '#bc8cff',
+  };
 
   return (
     <main>
       <div className="container">
         {/* ── Masthead ─────────────────────────────────────────────────────── */}
-        <header className="masthead" role="banner">
+        <header className="masthead">
           <div className="masthead-inner">
             <div className="masthead-content">
               <div className="tag-pill">Google Trends · US</div>
@@ -529,8 +690,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </header>
 
         {/* ── 01: Long-Run Annual ──────────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-01">
-          <h2 id="section-01" className="section-label">01 — Long-Run Annual Trend</h2>
+        <section className="section">
+          <div className="section-label">01 — Long-Run Annual Trend</div>
           <ChartCard
             title="Golf Clubs · Annual Average vs Summer Peak"
             legend={[
@@ -567,28 +728,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
             }
           >
             {chartJsReady ? (
-              <canvas ref={c1} aria-label="Bar chart showing annual average Google Trends interest for golf clubs from 2017 to 2026, with summer peak line overlay and pre-pandemic and post-pandemic reference lines" role="img" />
+              <canvas ref={c1} />
             ) : (
               <div className="chart-placeholder skeleton" />
             )}
           </ChartCard>
-
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              Golf search interest in the United States peaked in 2021, driven by the pandemic-era surge
-              in outdoor recreation. The annual average Google Trends index for &ldquo;golf clubs&rdquo;
-              hit {pandemicPeak ?? 66} that year{prePandemicAvg ? ` — roughly ${pandemicPeak && prePandemicAvg ? Math.round(((pandemicPeak - prePandemicAvg) / prePandemicAvg) * 100) : ''}% above the 2017–2019 baseline` : ''}.
-              Since 2022, interest has stabilized at a &ldquo;new normal&rdquo;
-              {pctIncrease ? ` approximately ${pctIncrease}% higher than pre-pandemic levels` : ''}, suggesting
-              the golf boom produced lasting participation gains rather than a temporary spike.
-            </p>
-          </div>
         </section>
 
         {/* ── 02: Quarterly ───────────────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-02">
-          <h2 id="section-02" className="section-label">02 — Quarterly Granularity</h2>
+        <section className="section">
+          <div className="section-label">02 — Quarterly Granularity</div>
           <ChartCard
             title="All Terms · Quarterly Average (2017–present)"
             legend={[
@@ -600,28 +749,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
             footnote="Each quarter is the average of its 3 constituent monthly values. Quarters with any null month are omitted."
           >
             {chartJsReady ? (
-              <canvas ref={c2} aria-label="Line chart comparing quarterly Google Trends interest for golf, golf clubs, golf equipment, and golf simulator from 2017 to present" role="img" />
+              <canvas ref={c2} />
             ) : (
               <div className="chart-placeholder skeleton" />
             )}
           </ChartCard>
-
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              Quarterly data reveals how closely correlated the broad &ldquo;golf&rdquo; search term
-              tracks with specific equipment terms like &ldquo;golf clubs&rdquo; and &ldquo;golf
-              equipment.&rdquo; All three follow the same seasonal cadence, peaking in Q2–Q3 and
-              troughing in Q4–Q1. The &ldquo;golf simulator&rdquo; term follows an inverted pattern,
-              peaking during the winter quarters when outdoor play is limited — a signal of the
-              growing indoor golf market.
-            </p>
-          </div>
         </section>
 
         {/* ── 03: Monthly Equipment ───────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-03">
-          <h2 id="section-03" className="section-label">03 — Monthly Equipment Breakdown</h2>
+        <section className="section">
+          <div className="section-label">03 — Monthly Equipment Breakdown</div>
           <ChartCard
             title="Golf Clubs / Balls / Bags · Last 24 Months"
             legend={[
@@ -632,29 +769,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
             footnote="Peak month marked with larger point radius. Bags exhibit a November gifting spike distinct from the summer equipment pattern."
           >
             {chartJsReady ? (
-              <canvas ref={c3} aria-label="Line chart showing monthly Google Trends interest for golf clubs, golf balls, and golf bags over the last 24 months with peak months highlighted" role="img" />
+              <canvas ref={c3} />
             ) : (
               <div className="chart-placeholder skeleton" />
             )}
           </ChartCard>
-
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              Golf equipment search follows a predictable annual cycle. Interest bottoms out in December
-              through February, ramps sharply in March and April as the golf season opens, and peaks between
-              May and August. &ldquo;Golf clubs&rdquo; consistently leads in search volume, followed by
-              &ldquo;golf balls&rdquo; at roughly half the index value — a pattern consistent with balls
-              being a consumable that tracks active play. &ldquo;Golf bags&rdquo; maintains the lowest
-              baseline but shows a distinctive November spike tied to holiday gift purchasing, making it
-              a seasonal outlier within the equipment category.
-            </p>
-          </div>
         </section>
 
         {/* ── 04: Simulator vs Clubs ──────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-04">
-          <h2 id="section-04" className="section-label">04 — Inverse Seasonality: Simulator vs. Clubs</h2>
+        <section className="section">
+          <div className="section-label">04 — Inverse Seasonality: Simulator vs. Clubs</div>
           <ChartCard
             title="Golf Simulator vs. Golf Clubs · Last 24 Months"
             legend={[
@@ -694,52 +818,27 @@ export default function Dashboard({ initialData }: DashboardProps) {
             }
           >
             {chartJsReady ? (
-              <canvas ref={c4} aria-label="Line chart comparing monthly Google Trends interest for golf clubs versus golf simulator over the last 24 months, showing inverse seasonal patterns" role="img" />
+              <canvas ref={c4} />
             ) : (
               <div className="chart-placeholder skeleton" />
             )}
           </ChartCard>
-
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              The inverse seasonality between &ldquo;golf clubs&rdquo; and &ldquo;golf simulator&rdquo;
-              reveals two distinct consumer buying windows per year. Equipment search dominates the warm
-              months (May–August), while simulator interest peaks in the off-season (November–February).
-              Simulator search has shown structural growth of approximately 8% annually from 2019 to 2023,
-              reflecting expanding adoption of indoor golf technology beyond a temporary pandemic effect.
-              The launch of the TGL simulator league in January 2025 further elevated off-season interest,
-              suggesting that professional simulator events may be driving consumer awareness and search demand.
-            </p>
-          </div>
         </section>
 
         {/* ── 05: Heatmap ─────────────────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-05">
-          <h2 id="section-05" className="section-label">05 — Seasonal Heatmap · Golf Clubs</h2>
+        <section className="section">
+          <div className="section-label">05 — Seasonal Heatmap · Golf Clubs</div>
           <ChartCard
             title="Golf Clubs · Monthly Index Heatmap (2017–present)"
             footnote="Color encodes search index intensity. 2026* row shows only completed months — future months appear as null (—) cells."
           >
             <Heatmap monthly={data.data.monthly.golfClubs} />
           </ChartCard>
-
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              The heatmap makes the consistency of golf&rsquo;s seasonal pattern visually clear. Every year
-              from 2017 to the present, the brightest cells (highest search interest) cluster in the
-              May–August band, while December–February cells are consistently dark. The 2021 row stands out
-              with the deepest greens on record — June 2021 reached the maximum index value of 100. Post-2021,
-              the summer cells remain brighter than their pre-2020 counterparts, confirming the elevated
-              &ldquo;new normal&rdquo; baseline visible in the annual chart above.
-            </p>
-          </div>
         </section>
 
         {/* ── 06: YoY Delta ───────────────────────────────────────────────── */}
-        <section className="section" aria-labelledby="section-06">
-          <h2 id="section-06" className="section-label">06 — Year-over-Year Delta</h2>
+        <section className="section">
+          <div className="section-label">06 — Year-over-Year Delta</div>
           <ChartCard
             title="Golf Clubs · YoY Summer Peak Change"
             legend={[
@@ -750,28 +849,88 @@ export default function Dashboard({ initialData }: DashboardProps) {
             footnote="YoY = current year summer peak minus prior year summer peak. 2026* uses Jan–Feb average as a partial proxy."
           >
             {chartJsReady ? (
-              <canvas ref={c6} aria-label="Bar chart showing year-over-year changes in golf clubs summer peak search interest from 2019 to 2026" role="img" />
+              <canvas ref={c6} />
             ) : (
               <div className="chart-placeholder skeleton" />
             )}
           </ChartCard>
+        </section>
 
-          {/* SEO prose block */}
-          <div className="section-prose">
-            <p>
-              Year-over-year delta analysis isolates the growth signal from the seasonal noise. The largest
-              positive jump occurred in 2020 and 2021, reflecting the pandemic golf surge. The subsequent
-              declines in 2022 and 2023 represent normalization — not a collapse — as summer peak values
-              remained well above pre-pandemic levels even as the rate of change turned negative. By 2024–2025,
-              the delta has flattened near zero, consistent with a market that has found its post-pandemic
-              equilibrium.
-            </p>
-          </div>
+        {/* ── 07: OEM Brand Comparison ────────────────────────────────────── */}
+        <section className="section">
+          <div className="section-label">07 — OEM Brand Search Volume</div>
+          <ChartCard
+            title="Top Golf OEMs · Quarterly Search Interest (2017–present)"
+            legend={[
+              { color: '#e3b341', label: 'Callaway' },
+              { color: '#39d353', label: 'TaylorMade' },
+              { color: '#58a6ff', label: 'Titleist' },
+              { color: '#f0883e', label: 'Ping', dashed: true },
+              { color: '#bc8cff', label: 'Mizuno', dashed: true },
+            ]}
+            footnote="Brand search terms: 'callaway golf', 'taylormade golf', 'titleist', 'ping golf', 'mizuno golf'. Each quarter averaged from 3 monthly values. Index is relative to each term's own peak within the same fetch window — cross-brand absolute comparisons indicate relative consumer search footprint, not sales rank. Tooltip shows all 5 brands simultaneously (hover mode: index)."
+            below={
+              <div style={{ padding: '0 24px 20px' }}>
+                {/* Rank callout row */}
+                <div className="oem-rank-row">
+                  {oemRanked.map(([brand, val], rank) => (
+                    <div key={brand} className="oem-rank-card">
+                      <div className="oem-rank-badge" style={{ color: oemColor[brand] }}>
+                        #{rank + 1}
+                      </div>
+                      <div
+                        className="oem-rank-name"
+                        style={{ color: oemColor[brand] }}
+                      >
+                        {oemDisplayName[brand]}
+                      </div>
+                      <div className="oem-rank-value">{val}</div>
+                      <div className="oem-rank-label">{oemLatestYear} avg</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Insight boxes */}
+                <div className="insights" style={{ marginTop: '16px' }}>
+                  <div className="insight">
+                    <div className="insight-title">Pandemic Surge — All Brands Lifted</div>
+                    <div className="insight-body">
+                      The 2020–21 outdoor activity boom raised search interest across every
+                      OEM, but Callaway and TaylorMade captured a disproportionate share —
+                      both carry broad consumer product lines that attract casual buyers
+                      entering the game for the first time.
+                    </div>
+                  </div>
+                  <div className="insight">
+                    <div className="insight-title">Titleist: Loyal but Narrow</div>
+                    <div className="insight-body">
+                      Titleist maintains a stable, premium-skewed search base driven largely
+                      by Pro V1 ball loyalists. Its search curve is notably flatter across
+                      seasons compared to equipment-heavy brands — ball buyers shop year-round.
+                    </div>
+                  </div>
+                  <div className="insight">
+                    <div className="insight-title">Ping &amp; Mizuno: Fitting-First Brands</div>
+                    <div className="insight-body">
+                      Ping and Mizuno command lower consumer search volumes but high
+                      conversion intent — shoppers tend to search these brands later in the
+                      purchase funnel after visiting a fitting studio, compressing their
+                      search-to-purchase window.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          >
+            {chartJsReady ? (
+              <canvas ref={c7} style={{ height: '320px' }} />
+            ) : (
+              <div className="chart-placeholder skeleton" style={{ height: '320px' }} />
+            )}
+          </ChartCard>
         </section>
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
         <footer className="page-footer">
-          <h2 className="sr-only">Methodology</h2>
           <p className="footer-note">
             <strong>Methodology note:</strong>{' '}
             Google Trends reports normalized search interest on a 0–100 scale where 100 = peak
@@ -784,6 +943,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
             the dashboard serves seed data estimated from published industry reports, confirmed
             by Accio.com&apos;s direct Google Trends export (key anchors:{' '}
             <strong>&quot;golf clubs&quot; Aug 2025 = 91, Feb 2025 = 29; &quot;golf balls&quot; Aug 2025 = 46</strong>).
+            OEM brand terms fetched as: &quot;callaway golf&quot;, &quot;taylormade golf&quot;,
+            &quot;titleist&quot;, &quot;ping golf&quot;, &quot;mizuno golf&quot;.
             Partial-year data (current calendar year) is labeled with an asterisk.
           </p>
         </footer>
