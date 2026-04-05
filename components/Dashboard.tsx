@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import Link from 'next/link';
 import type { TrendsResponse } from '@/lib/types';
-import { downloadCsv } from '@/lib/download';
 import StaleIndicator from './StaleIndicator';
 import ChartCard from './ChartCard';
 import Heatmap from './Heatmap';
@@ -12,28 +12,32 @@ import {
   lastNMonths, yoyDeltas,
 } from '@/lib/chart-helpers';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface DashboardProps {
   initialData: TrendsResponse;
 }
 
+// ── Chart.js dynamic import ───────────────────────────────────────────────────
 async function loadChartJs() {
   const { Chart, registerables } = await import('chart.js');
   Chart.register(...registerables);
   return Chart;
 }
 
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function Dashboard({ initialData }: DashboardProps) {
   const [data, setData] = useState<TrendsResponse>(initialData);
   const [chartJsReady, setChartJsReady] = useState(false);
   const ChartRef = useRef<any>(null);
 
+  // Canvas refs
   const c1 = useRef<HTMLCanvasElement>(null);
   const c2 = useRef<HTMLCanvasElement>(null);
   const c3 = useRef<HTMLCanvasElement>(null);
   const c4 = useRef<HTMLCanvasElement>(null);
   const c6 = useRef<HTMLCanvasElement>(null);
-  const c7 = useRef<HTMLCanvasElement>(null);
 
+  // Chart instance refs — typed as `any` to avoid complex generics from dynamic import
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst1 = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,9 +48,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const inst4 = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inst6 = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const inst7 = useRef<any>(null);
 
+  // Load Chart.js once
   useEffect(() => {
     loadChartJs().then((Chart) => {
       ChartRef.current = Chart;
@@ -54,21 +57,26 @@ export default function Dashboard({ initialData }: DashboardProps) {
     });
   }, []);
 
+  // Hydrate with live data on mount
   useEffect(() => {
     fetch('/api/data')
       .then((r) => r.json())
       .then((fresh: TrendsResponse) => {
         if (fresh?.data?.monthly?.golfClubs) setData(fresh);
       })
-      .catch(() => {});
+      .catch(() => { /* keep initialData */ });
   }, []);
 
+  // Destroy a chart instance safely
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function destroy(ref: React.MutableRefObject<any>) {
-    if (ref.current) { ref.current.destroy(); ref.current = null; }
+    if (ref.current) {
+      ref.current.destroy();
+      ref.current = null;
+    }
   }
 
-  // ── Chart 1 ────────────────────────────────────────────────────────────────
+  // ── Chart 1: Long-Run Annual ────────────────────────────────────────────────
   const buildChart1 = useCallback(() => {
     const Chart = ChartRef.current;
     if (!Chart || !c1.current) return;
@@ -84,77 +92,161 @@ export default function Dashboard({ initialData }: DashboardProps) {
       data: {
         labels: allYears,
         datasets: [
-          { type: 'bar', label: 'Annual Avg', data: clubVals,
+          {
+            type: 'bar',
+            label: 'Annual Avg',
+            data: clubVals,
             backgroundColor: clubVals.map((v) => v !== null ? barColor(v) : 'transparent'),
-            borderRadius: 3, order: 2 },
-          { type: 'line', label: 'Summer Peak', data: peakVals,
-            borderColor: '#e3b341', backgroundColor: 'transparent',
-            pointRadius: 4, pointBackgroundColor: '#e3b341', borderWidth: 1.5, tension: 0.3, order: 1 },
-          { type: 'line', label: 'Pre-pandemic baseline (52)', data: allYears.map(() => 52),
-            borderColor: 'rgba(227,179,65,0.35)', borderDash: [5, 4], pointRadius: 0, borderWidth: 1, order: 3 },
-          { type: 'line', label: 'Post-pandemic normal (67)', data: allYears.map(() => 67),
-            borderColor: 'rgba(57,211,83,0.35)', borderDash: [5, 4], pointRadius: 0, borderWidth: 1, order: 3 },
+            borderRadius: 3,
+            order: 2,
+          },
+          {
+            type: 'line',
+            label: 'Summer Peak',
+            data: peakVals,
+            borderColor: '#e3b341',
+            backgroundColor: 'transparent',
+            pointRadius: 4,
+            pointBackgroundColor: '#e3b341',
+            borderWidth: 1.5,
+            tension: 0.3,
+            order: 1,
+          },
+          {
+            type: 'line',
+            label: 'Pre-pandemic baseline (52)',
+            data: allYears.map(() => 52),
+            borderColor: 'rgba(227,179,65,0.35)',
+            borderDash: [5, 4],
+            pointRadius: 0,
+            borderWidth: 1,
+            order: 3,
+          },
+          {
+            type: 'line',
+            label: 'Post-pandemic normal (67)',
+            data: allYears.map(() => 67),
+            borderColor: 'rgba(57,211,83,0.35)',
+            borderDash: [5, 4],
+            pointRadius: 0,
+            borderWidth: 1,
+            order: 3,
+          },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { ...TOOLTIP_CONFIG, callbacks: {
-            title: ([item]: [{ label: string }]) =>
-              item.label === '2026*' ? '2026 (partial — Jan/Feb avg)' : item.label,
-          }},
+          tooltip: {
+            ...TOOLTIP_CONFIG,
+            callbacks: {
+              title: ([item]: [{ label: string }]) => {
+                const y = item.label;
+                return y === '2026*' ? '2026 (partial — Jan/Feb avg)' : y;
+              },
+            },
+          },
         },
         scales: {
-          x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks,
-            color: (ctx) => ctx.tick?.label === '2026*' ? '#e3b341' : '#4d6b56' } },
+          x: {
+            ...SCALE_CONFIG.x,
+            ticks: {
+              ...SCALE_CONFIG.x.ticks,
+              color: (ctx) => ctx.tick?.label === '2026*' ? '#e3b341' : '#4d6b56',
+            },
+          },
           y: SCALE_CONFIG.y,
         },
       },
     });
   }, [data]);
 
-  // ── Chart 2 ────────────────────────────────────────────────────────────────
+  // ── Chart 2: Quarterly Time Series ─────────────────────────────────────────
   const buildChart2 = useCallback(() => {
     const Chart = ChartRef.current;
     if (!Chart || !c2.current) return;
     destroy(inst2);
 
     const { quarterly } = data.data;
-    const allQKeys = Array.from(new Set([
-      ...Object.keys(quarterly.golf),
-      ...Object.keys(quarterly.golfClubs),
-      ...Object.keys(quarterly.golfEquipment),
-      ...Object.keys(quarterly.golfSimulator),
-    ])).sort();
+    const allQKeys = Array.from(
+      new Set([
+        ...Object.keys(quarterly.golf),
+        ...Object.keys(quarterly.golfClubs),
+        ...Object.keys(quarterly.golfEquipment),
+        ...Object.keys(quarterly.golfSimulator),
+      ])
+    ).sort();
+
+    // Only include quarters where at least one series has data
+    const labels = allQKeys.map(fmtQuarterLabel);
 
     inst2.current = new Chart(c2.current, {
       type: 'line',
       data: {
-        labels: allQKeys.map(fmtQuarterLabel),
+        labels,
         datasets: [
-          { label: 'Golf (broad)', data: allQKeys.map((k) => quarterly.golf[k] ?? null),
-            borderColor: '#39d353', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'Golf Clubs', data: allQKeys.map((k) => quarterly.golfClubs[k] ?? null),
-            borderColor: '#e3b341', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'Golf Equipment', data: allQKeys.map((k) => quarterly.golfEquipment[k] ?? null),
-            borderColor: '#58a6ff', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [3, 2], pointRadius: 1.5, tension: 0.3, spanGaps: false },
-          { label: 'Golf Simulator', data: allQKeys.map((k) => quarterly.golfSimulator[k] ?? null),
-            borderColor: '#bc8cff', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 1.5, tension: 0.3, spanGaps: false },
+          {
+            label: 'Golf (broad)',
+            data: allQKeys.map((k) => quarterly.golf[k] ?? null),
+            borderColor: '#39d353',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Clubs',
+            data: allQKeys.map((k) => quarterly.golfClubs[k] ?? null),
+            borderColor: '#e3b341',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Equipment',
+            data: allQKeys.map((k) => quarterly.golfEquipment[k] ?? null),
+            borderColor: '#58a6ff',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [3, 2],
+            pointRadius: 1.5,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Simulator',
+            data: allQKeys.map((k) => quarterly.golfSimulator[k] ?? null),
+            borderColor: '#bc8cff',
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [5, 3],
+            pointRadius: 1.5,
+            tension: 0.3,
+            spanGaps: false,
+          },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: TOOLTIP_CONFIG },
         scales: {
-          x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks, maxRotation: 45, font: { family: "'IBM Plex Mono'", size: 9 } } },
+          x: {
+            ...SCALE_CONFIG.x,
+            ticks: { ...SCALE_CONFIG.x.ticks, maxRotation: 45, font: { family: "'IBM Plex Mono'", size: 9 } },
+          },
           y: SCALE_CONFIG.y,
         },
       },
     });
   }, [data]);
 
-  // ── Chart 3 ────────────────────────────────────────────────────────────────
+  // ── Chart 3: Monthly Equipment (last 24 months) ─────────────────────────────
   const buildChart3 = useCallback(() => {
     const Chart = ChartRef.current;
     if (!Chart || !c3.current) return;
@@ -164,41 +256,79 @@ export default function Dashboard({ initialData }: DashboardProps) {
     const { keys, values: clubsVals } = lastNMonths(monthly.golfClubs, 24);
     const ballsVals = keys.map((k) => monthly.golfBalls[k] ?? null);
     const bagsVals  = keys.map((k) => monthly.golfBags[k] ?? null);
+    const labels    = keys.map(fmtMonthLabel);
 
+    // Peak detection
     const clubPeakIdx = clubsVals.reduce((mi, v, i) => (v ?? 0) > (clubsVals[mi] ?? 0) ? i : mi, 0);
     const ballPeakIdx = ballsVals.reduce((mi, v, i) => (v ?? 0) > (ballsVals[mi] ?? 0) ? i : mi, 0);
     const bagsPeakIdx = bagsVals.reduce((mi, v, i) => (v ?? 0) > (bagsVals[mi] ?? 0) ? i : mi, 0);
 
+    const clubsPointRadius = clubsVals.map((_, i) => i === clubPeakIdx ? 6 : 3);
+    const ballsPointRadius = ballsVals.map((_, i) => i === ballPeakIdx ? 6 : 3);
+    const bagsPointRadius  = bagsVals.map((_, i) => i === bagsPeakIdx ? 5 : 2);
+
     inst3.current = new Chart(c3.current, {
       type: 'line',
       data: {
-        labels: keys.map(fmtMonthLabel),
+        labels,
         datasets: [
-          { label: 'Golf Clubs', data: clubsVals,
-            borderColor: '#e3b341', backgroundColor: 'rgba(227,179,65,0.08)', fill: true, tension: 0.4, borderWidth: 2.5,
-            pointRadius: clubsVals.map((_, i) => i === clubPeakIdx ? 6 : 3), pointBackgroundColor: '#e3b341', spanGaps: false },
-          { label: 'Golf Balls', data: ballsVals,
-            borderColor: '#39d353', backgroundColor: 'rgba(57,211,83,0.05)', fill: true, tension: 0.4, borderWidth: 2,
-            pointRadius: ballsVals.map((_, i) => i === ballPeakIdx ? 6 : 3), pointBackgroundColor: '#39d353', spanGaps: false },
-          { label: 'Golf Bags', data: bagsVals,
-            borderColor: '#58a6ff', backgroundColor: 'transparent', fill: false, borderDash: [4, 3], tension: 0.4, borderWidth: 1.5,
-            pointRadius: bagsVals.map((_, i) => i === bagsPeakIdx ? 5 : 2), pointBackgroundColor: '#58a6ff', spanGaps: false },
+          {
+            label: 'Golf Clubs',
+            data: clubsVals,
+            borderColor: '#e3b341',
+            backgroundColor: 'rgba(227,179,65,0.08)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 2.5,
+            pointRadius: clubsPointRadius,
+            pointBackgroundColor: '#e3b341',
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Balls',
+            data: ballsVals,
+            borderColor: '#39d353',
+            backgroundColor: 'rgba(57,211,83,0.05)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 2,
+            pointRadius: ballsPointRadius,
+            pointBackgroundColor: '#39d353',
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Bags',
+            data: bagsVals,
+            borderColor: '#58a6ff',
+            backgroundColor: 'transparent',
+            fill: false,
+            borderDash: [4, 3],
+            tension: 0.4,
+            borderWidth: 1.5,
+            pointRadius: bagsPointRadius,
+            pointBackgroundColor: '#58a6ff',
+            spanGaps: false,
+          },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { ...TOOLTIP_CONFIG, callbacks: {
-            afterLabel: (ctx) => {
-              const l = ctx.dataset.label ?? '';
-              const i = ctx.dataIndex;
-              if (l === 'Golf Clubs' && i === clubPeakIdx) return '▲ Peak month';
-              if (l === 'Golf Balls' && i === ballPeakIdx) return '▲ Peak month';
-              if (l === 'Golf Bags'  && i === bagsPeakIdx) return '▲ Nov spike';
-              return '';
+          tooltip: {
+            ...TOOLTIP_CONFIG,
+            callbacks: {
+              afterLabel: (ctx) => {
+                const dsLabel = ctx.dataset.label ?? '';
+                const idx = ctx.dataIndex;
+                if (dsLabel === 'Golf Clubs' && idx === clubPeakIdx) return '▲ Peak month';
+                if (dsLabel === 'Golf Balls' && idx === ballPeakIdx) return '▲ Peak month';
+                if (dsLabel === 'Golf Bags'  && idx === bagsPeakIdx) return '▲ Nov spike';
+                return '';
+              },
             },
-          }},
+          },
         },
         scales: {
           x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks, maxRotation: 45 } },
@@ -208,7 +338,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
     });
   }, [data]);
 
-  // ── Chart 4 ────────────────────────────────────────────────────────────────
+  // ── Chart 4: Simulator vs Clubs ─────────────────────────────────────────────
   const buildChart4 = useCallback(() => {
     const Chart = ChartRef.current;
     if (!Chart || !c4.current) return;
@@ -217,20 +347,41 @@ export default function Dashboard({ initialData }: DashboardProps) {
     const { monthly } = data.data;
     const { keys, values: clubsVals } = lastNMonths(monthly.golfClubs, 24);
     const simVals = keys.map((k) => monthly.golfSimulator[k] ?? null);
+    const labels  = keys.map(fmtMonthLabel);
 
     inst4.current = new Chart(c4.current, {
       type: 'line',
       data: {
-        labels: keys.map(fmtMonthLabel),
+        labels,
         datasets: [
-          { label: 'Golf Clubs', data: clubsVals,
-            borderColor: '#e3b341', backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 2.5, pointRadius: 2, spanGaps: false },
-          { label: 'Golf Simulator', data: simVals,
-            borderColor: '#bc8cff', backgroundColor: 'transparent', fill: false, borderDash: [4, 2], tension: 0.4, borderWidth: 2, pointRadius: 2, spanGaps: false },
+          {
+            label: 'Golf Clubs',
+            data: clubsVals,
+            borderColor: '#e3b341',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.4,
+            borderWidth: 2.5,
+            pointRadius: 2,
+            spanGaps: false,
+          },
+          {
+            label: 'Golf Simulator',
+            data: simVals,
+            borderColor: '#bc8cff',
+            backgroundColor: 'transparent',
+            fill: false,
+            borderDash: [4, 2],
+            tension: 0.4,
+            borderWidth: 2,
+            pointRadius: 2,
+            spanGaps: false,
+          },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: TOOLTIP_CONFIG },
         scales: {
           x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks, maxRotation: 45 } },
@@ -240,7 +391,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
     });
   }, [data]);
 
-  // ── Chart 6 ────────────────────────────────────────────────────────────────
+  // ── Chart 6: YoY Delta ──────────────────────────────────────────────────────
   const buildChart6 = useCallback(() => {
     const Chart = ChartRef.current;
     if (!Chart || !c6.current) return;
@@ -265,166 +416,65 @@ export default function Dashboard({ initialData }: DashboardProps) {
       type: 'bar',
       data: {
         labels,
-        datasets: [{ label: 'YoY Summer Peak Δ', data: values, backgroundColor: colors, borderRadius: 3 }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { ...TOOLTIP_CONFIG, callbacks: {
-            label: (ctx) => {
-              const val = ctx.raw as number;
-              const sign = val >= 0 ? '+' : '';
-              return `${sign}${val}${isPartial[ctx.dataIndex] ? ' (Jan–Feb partial)' : ' (summer peak)'}`;
-            },
-          }},
-        },
-        scales: {
-          x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks,
-            color: (ctx) => ctx.tick?.label?.includes('*') ? '#e3b341' : '#4d6b56' } },
-          y: { ticks: { color: '#4d6b56', font: { family: "'IBM Plex Mono'", size: 10 } }, grid: { color: '#1c2e20' } },
-        },
-      },
-    });
-  }, [data]);
-
-  // ── Chart 7 ────────────────────────────────────────────────────────────────
-  const buildChart7 = useCallback(() => {
-    const Chart = ChartRef.current;
-    if (!Chart || !c7.current || !data.data.quarterly.callaway) return;
-    destroy(inst7);
-
-    const { quarterly } = data.data;
-    const allQKeys = Array.from(new Set([
-      ...Object.keys(quarterly.callaway   ?? {}),
-      ...Object.keys(quarterly.taylormade ?? {}),
-      ...Object.keys(quarterly.titleist   ?? {}),
-      ...Object.keys(quarterly.ping       ?? {}),
-      ...Object.keys(quarterly.mizuno     ?? {}),
-    ])).sort();
-
-    inst7.current = new Chart(c7.current, {
-      type: 'line',
-      data: {
-        labels: allQKeys.map(fmtQuarterLabel),
         datasets: [
-          { label: 'Callaway', data: allQKeys.map((k) => quarterly.callaway?.[k] ?? null),
-            borderColor: '#e3b341', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'TaylorMade', data: allQKeys.map((k) => quarterly.taylormade?.[k] ?? null),
-            borderColor: '#39d353', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'Titleist', data: allQKeys.map((k) => quarterly.titleist?.[k] ?? null),
-            borderColor: '#58a6ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 2, tension: 0.3, spanGaps: false },
-          { label: 'Ping', data: allQKeys.map((k) => quarterly.ping?.[k] ?? null),
-            borderColor: '#f0883e', backgroundColor: 'transparent', borderDash: [4, 2], borderWidth: 1.5, pointRadius: 1.5, tension: 0.3, spanGaps: false },
-          { label: 'Mizuno', data: allQKeys.map((k) => quarterly.mizuno?.[k] ?? null),
-            borderColor: '#bc8cff', backgroundColor: 'transparent', borderDash: [6, 3], borderWidth: 1.5, pointRadius: 1.5, tension: 0.3, spanGaps: false },
+          {
+            label: 'YoY Summer Peak Δ',
+            data: values,
+            backgroundColor: colors,
+            borderRadius: 3,
+          },
         ],
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { ...TOOLTIP_CONFIG, mode: 'index', intersect: false } },
-        scales: {
-          x: { ...SCALE_CONFIG.x, ticks: { ...SCALE_CONFIG.x.ticks, maxRotation: 45, font: { family: "'IBM Plex Mono'", size: 9 } } },
-          y: { ...SCALE_CONFIG.y, max: 105, ticks: { ...SCALE_CONFIG.y.ticks, stepSize: 10 } },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...TOOLTIP_CONFIG,
+            callbacks: {
+              label: (ctx) => {
+                const val = ctx.raw as number;
+                const i = ctx.dataIndex;
+                const sign = val >= 0 ? '+' : '';
+                const suffix = isPartial[i] ? ' (Jan–Feb partial)' : ' (summer peak)';
+                return `${sign}${val}${suffix}`;
+              },
+            },
+          },
         },
-        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            ...SCALE_CONFIG.x,
+            ticks: {
+              ...SCALE_CONFIG.x.ticks,
+              color: (ctx) => ctx.tick?.label?.includes('*') ? '#e3b341' : '#4d6b56',
+            },
+          },
+          y: {
+            ticks: { color: '#4d6b56', font: { family: "'IBM Plex Mono'", size: 10 } },
+            grid:  { color: '#1c2e20' },
+          },
+        },
       },
     });
   }, [data]);
 
-  // ── Build all charts ───────────────────────────────────────────────────────
+  // ── Build / rebuild all charts when data + Chart.js are ready ────────────────
   useEffect(() => {
     if (!chartJsReady) return;
-    buildChart1(); buildChart2(); buildChart3();
-    buildChart4(); buildChart6(); buildChart7();
+    buildChart1();
+    buildChart2();
+    buildChart3();
+    buildChart4();
+    buildChart6();
     return () => {
       destroy(inst1); destroy(inst2); destroy(inst3);
-      destroy(inst4); destroy(inst6); destroy(inst7);
+      destroy(inst4); destroy(inst6);
     };
-  }, [chartJsReady, buildChart1, buildChart2, buildChart3, buildChart4, buildChart6, buildChart7]);
+  }, [chartJsReady, buildChart1, buildChart2, buildChart3, buildChart4, buildChart6]);
 
-  // ── Download handlers ──────────────────────────────────────────────────────
-  const handleDownload1 = useCallback(() => {
-    const { annual } = data.data;
-    const years = ['2017','2018','2019','2020','2021','2022','2023','2024','2025','2026'];
-    downloadCsv('golf-clubs-annual.csv', years, [
-      { label: 'Annual Avg', values: years.map((y) => annual.golfClubs[y] ?? null) },
-      { label: 'Summer Peak', values: years.map((y) => annual.summerPeak[y] ?? null) },
-    ]);
-  }, [data]);
-
-  const handleDownload2 = useCallback(() => {
-    const { quarterly } = data.data;
-    const keys = Array.from(new Set([
-      ...Object.keys(quarterly.golf), ...Object.keys(quarterly.golfClubs),
-      ...Object.keys(quarterly.golfEquipment), ...Object.keys(quarterly.golfSimulator),
-    ])).sort();
-    downloadCsv('golf-quarterly.csv', keys, [
-      { label: 'Golf (broad)', values: keys.map((k) => quarterly.golf[k] ?? null) },
-      { label: 'Golf Clubs',   values: keys.map((k) => quarterly.golfClubs[k] ?? null) },
-      { label: 'Golf Equipment', values: keys.map((k) => quarterly.golfEquipment[k] ?? null) },
-      { label: 'Golf Simulator', values: keys.map((k) => quarterly.golfSimulator[k] ?? null) },
-    ]);
-  }, [data]);
-
-  const handleDownload3 = useCallback(() => {
-    const { monthly } = data.data;
-    const { keys } = lastNMonths(monthly.golfClubs, 24);
-    downloadCsv('golf-equipment-monthly-24mo.csv', keys, [
-      { label: 'Golf Clubs', values: keys.map((k) => monthly.golfClubs[k] ?? null) },
-      { label: 'Golf Balls', values: keys.map((k) => monthly.golfBalls[k] ?? null) },
-      { label: 'Golf Bags',  values: keys.map((k) => monthly.golfBags[k] ?? null) },
-    ]);
-  }, [data]);
-
-  const handleDownload4 = useCallback(() => {
-    const { monthly } = data.data;
-    const { keys } = lastNMonths(monthly.golfClubs, 24);
-    downloadCsv('golf-simulator-vs-clubs-24mo.csv', keys, [
-      { label: 'Golf Clubs',     values: keys.map((k) => monthly.golfClubs[k] ?? null) },
-      { label: 'Golf Simulator', values: keys.map((k) => monthly.golfSimulator[k] ?? null) },
-    ]);
-  }, [data]);
-
-  const handleDownload5 = useCallback(() => {
-    const { monthly } = data.data;
-    const allKeys = Object.keys(monthly.golfClubs).sort();
-    downloadCsv('golf-clubs-heatmap-monthly.csv', allKeys, [
-      { label: 'Golf Clubs', values: allKeys.map((k) => monthly.golfClubs[k] ?? null) },
-    ]);
-  }, [data]);
-
-  const handleDownload6 = useCallback(() => {
-    const { annual, monthly } = data.data;
-    const { labels, values } = yoyDeltas(
-      annual.summerPeak as Record<string, number>,
-      monthly.golfClubs['2026-01'] ?? null,
-      monthly.golfClubs['2026-02'] ?? null
-    );
-    downloadCsv('golf-clubs-yoy-delta.csv', labels, [
-      { label: 'YoY Summer Peak Delta', values },
-    ]);
-  }, [data]);
-
-  const handleDownload7 = useCallback(() => {
-    const { quarterly } = data.data;
-    const keys = Array.from(new Set([
-      ...Object.keys(quarterly.callaway   ?? {}),
-      ...Object.keys(quarterly.taylormade ?? {}),
-      ...Object.keys(quarterly.titleist   ?? {}),
-      ...Object.keys(quarterly.ping       ?? {}),
-      ...Object.keys(quarterly.mizuno     ?? {}),
-    ])).sort();
-    downloadCsv('golf-oem-brands-quarterly.csv', keys, [
-      { label: 'Callaway',  values: keys.map((k) => quarterly.callaway?.[k]   ?? null) },
-      { label: 'TaylorMade', values: keys.map((k) => quarterly.taylormade?.[k] ?? null) },
-      { label: 'Titleist',       values: keys.map((k) => quarterly.titleist?.[k]   ?? null) },
-      { label: 'Ping',           values: keys.map((k) => quarterly.ping?.[k]        ?? null) },
-      { label: 'Mizuno',         values: keys.map((k) => quarterly.mizuno?.[k]      ?? null) },
-    ]);
-  }, [data]);
-
-  // ── Derived callout stats ──────────────────────────────────────────────────
+  // ── Derived callout stats ───────────────────────────────────────────────────
   const { annual } = data.data;
 
   const prePandemicAvg = (() => {
@@ -440,47 +490,21 @@ export default function Dashboard({ initialData }: DashboardProps) {
   })();
 
   const delta = (newNormalAvg && prePandemicAvg)
-    ? `+${newNormalAvg - prePandemicAvg} vs pre-pandemic avg` : null;
-
-  // OEM rank callouts
-  const oemLatestYear = (() => {
-    for (const y of ['2025', '2024', '2023']) {
-      if (annual.callaway?.[y]) return y;
-    }
-    return '2024';
-  })();
-
-  const oemStats = {
-    callaway:   annual.callaway?.[oemLatestYear]   ?? null,
-    taylormade: annual.taylormade?.[oemLatestYear] ?? null,
-    titleist:   annual.titleist?.[oemLatestYear]   ?? null,
-    ping:       annual.ping?.[oemLatestYear]        ?? null,
-    mizuno:     annual.mizuno?.[oemLatestYear]      ?? null,
-  };
-
-  const oemRanked = (Object.entries(oemStats) as [string, number | null][])
-    .filter(([, v]) => v !== null)
-    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0));
-
-  const oemDisplayName: Record<string, string> = {
-    callaway: 'Callaway', taylormade: 'TaylorMade',
-    titleist: 'Titleist', ping: 'Ping', mizuno: 'Mizuno',
-  };
-
-  const oemColor: Record<string, string> = {
-    callaway: '#e3b341', taylormade: '#39d353',
-    titleist: '#58a6ff', ping: '#f0883e', mizuno: '#bc8cff',
-  };
+    ? `+${newNormalAvg - prePandemicAvg} vs pre-pandemic avg`
+    : null;
 
   return (
     <main>
       <div className="container">
-        {/* ── Masthead ──────────────────────────────────────────────────────── */}
+        {/* ── Masthead ─────────────────────────────────────────────────────── */}
         <header className="masthead">
           <div className="masthead-inner">
             <div className="masthead-content">
               <div className="tag-pill">Google Trends · US</div>
-              <h1>Golf Search Volume / <strong>Time Series</strong></h1>
+              <h1>
+                Golf Search Volume /{' '}
+                <strong>Time Series</strong>
+              </h1>
               <p className="lede">
                 Normalized search interest (0–100) for golf equipment and participation
                 terms, tracked from 2017 through the present via Google Trends.
@@ -492,11 +516,15 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <span>Index: Relative (100 = peak)</span>
               </div>
             </div>
-            <StaleIndicator lastUpdated={data.lastUpdated} stale={data.stale} source={data.source} />
+            <StaleIndicator
+              lastUpdated={data.lastUpdated}
+              stale={data.stale}
+              source={data.source}
+            />
           </div>
         </header>
 
-        {/* ── 01 ────────────────────────────────────────────────────────────── */}
+        {/* ── 01: Long-Run Annual ──────────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">01 — Long-Run Annual Trend</div>
           <ChartCard
@@ -508,7 +536,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#e3b341', label: 'Summer peak' },
             ]}
             footnote="Bar shading encodes magnitude. Summer peak = max of Jun/Jul/Aug. 2026* = Jan–Feb average only."
-            onDownload={handleDownload1}
             below={
               <div style={{ padding: '0 24px 20px' }}>
                 <div className="callouts">
@@ -535,11 +562,15 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </div>
             }
           >
-            {chartJsReady ? <canvas ref={c1} /> : <div className="chart-placeholder skeleton" />}
+            {chartJsReady ? (
+              <canvas ref={c1} />
+            ) : (
+              <div className="chart-placeholder skeleton" />
+            )}
           </ChartCard>
         </section>
 
-        {/* ── 02 ────────────────────────────────────────────────────────────── */}
+        {/* ── 02: Quarterly ───────────────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">02 — Quarterly Granularity</div>
           <ChartCard
@@ -551,13 +582,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
             ]}
             footnote="Each quarter is the average of its 3 constituent monthly values. Quarters with any null month are omitted."
-            onDownload={handleDownload2}
           >
-            {chartJsReady ? <canvas ref={c2} /> : <div className="chart-placeholder skeleton" />}
+            {chartJsReady ? (
+              <canvas ref={c2} />
+            ) : (
+              <div className="chart-placeholder skeleton" />
+            )}
           </ChartCard>
         </section>
 
-        {/* ── 03 ────────────────────────────────────────────────────────────── */}
+        {/* ── 03: Monthly Equipment ───────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">03 — Monthly Equipment Breakdown</div>
           <ChartCard
@@ -568,13 +602,16 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#58a6ff', label: 'Bags', dashed: true },
             ]}
             footnote="Peak month marked with larger point radius. Bags exhibit a November gifting spike distinct from the summer equipment pattern."
-            onDownload={handleDownload3}
           >
-            {chartJsReady ? <canvas ref={c3} /> : <div className="chart-placeholder skeleton" />}
+            {chartJsReady ? (
+              <canvas ref={c3} />
+            ) : (
+              <div className="chart-placeholder skeleton" />
+            )}
           </ChartCard>
         </section>
 
-        {/* ── 04 ────────────────────────────────────────────────────────────── */}
+        {/* ── 04: Simulator vs Clubs ──────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">04 — Inverse Seasonality: Simulator vs. Clubs</div>
           <ChartCard
@@ -584,7 +621,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
             ]}
             footnote="Simulator interest peaks Nov–Feb when outdoor play declines. Clubs peak Jun–Aug. Two distinct consumer windows per year."
-            onDownload={handleDownload4}
             below={
               <div style={{ padding: '0 24px 20px' }}>
                 <div className="insights">
@@ -616,23 +652,26 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </div>
             }
           >
-            {chartJsReady ? <canvas ref={c4} /> : <div className="chart-placeholder skeleton" />}
+            {chartJsReady ? (
+              <canvas ref={c4} />
+            ) : (
+              <div className="chart-placeholder skeleton" />
+            )}
           </ChartCard>
         </section>
 
-        {/* ── 05 ────────────────────────────────────────────────────────────── */}
+        {/* ── 05: Heatmap ─────────────────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">05 — Seasonal Heatmap · Golf Clubs</div>
           <ChartCard
             title="Golf Clubs · Monthly Index Heatmap (2017–present)"
             footnote="Color encodes search index intensity. 2026* row shows only completed months — future months appear as null (—) cells."
-            onDownload={handleDownload5}
           >
             <Heatmap monthly={data.data.monthly.golfClubs} />
           </ChartCard>
         </section>
 
-        {/* ── 06 ────────────────────────────────────────────────────────────── */}
+        {/* ── 06: YoY Delta ───────────────────────────────────────────────── */}
         <section className="section">
           <div className="section-label">06 — Year-over-Year Delta</div>
           <ChartCard
@@ -643,89 +682,66 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: 'rgba(227,179,65,0.55)', label: '2026* partial' },
             ]}
             footnote="YoY = current year summer peak minus prior year summer peak. 2026* uses Jan–Feb average as a partial proxy."
-            onDownload={handleDownload6}
           >
-            {chartJsReady ? <canvas ref={c6} /> : <div className="chart-placeholder skeleton" />}
+            {chartJsReady ? (
+              <canvas ref={c6} />
+            ) : (
+              <div className="chart-placeholder skeleton" />
+            )}
           </ChartCard>
         </section>
 
-        {/* ── 07 ────────────────────────────────────────────────────────────── */}
+        {/* ── Latest Analysis ───────────────────────────────────────────── */}
         <section className="section">
-          <div className="section-label">07 — OEM Brand Search Volume</div>
-          <ChartCard
-            title="Top Golf OEMs · Quarterly Search Interest (2017–present)"
-            legend={[
-              { color: '#e3b341', label: 'Callaway' },
-              { color: '#39d353', label: 'TaylorMade' },
-              { color: '#58a6ff', label: 'Titleist' },
-              { color: '#f0883e', label: 'Ping', dashed: true },
-              { color: '#bc8cff', label: 'Mizuno', dashed: true },
-            ]}
-            footnote="Brand search terms: 'callaway golf', 'taylormade golf', 'titleist', 'ping golf', 'mizuno golf'. Each quarter averaged from 3 monthly values. Index is relative — all brands fetched in the same window, so relative positioning reflects consumer search footprint."
-            onDownload={handleDownload7}
-            below={
-              <div style={{ padding: '0 24px 20px' }}>
-                <div className="oem-rank-row">
-                  {oemRanked.map(([brand, val], rank) => (
-                    <div key={brand} className="oem-rank-card">
-                      <div className="oem-rank-badge" style={{ color: oemColor[brand] }}>#{rank + 1}</div>
-                      <div className="oem-rank-name" style={{ color: oemColor[brand] }}>{oemDisplayName[brand]}</div>
-                      <div className="oem-rank-value">{val}</div>
-                      <div className="oem-rank-label">{oemLatestYear} avg</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="insights" style={{ marginTop: '16px' }}>
-                  <div className="insight">
-                    <div className="insight-title">Callaway &amp; TaylorMade: Tightening Race</div>
-                    <div className="insight-body">
-                      Over the past 8 quarters, Callaway and TaylorMade have traded the
-                      top spot in brand search volume. TaylorMade's Qi10 driver launch
-                      in early 2024 drove a notable Q1 spike, while Callaway's Paradym Ai
-                      line held steady through the summer peak window.
-                    </div>
-                  </div>
-                  <div className="insight">
-                    <div className="insight-title">Titleist: Stable Premium Floor</div>
-                    <div className="insight-body">
-                      Titleist search has remained consistent over the last 10 quarters
-                      with less seasonal volatility than equipment-first brands — a signal
-                      that its core audience of ball loyalists shops with less weather
-                      dependence than club buyers.
-                    </div>
-                  </div>
-                  <div className="insight">
-                    <div className="insight-title">Ping &amp; Mizuno: Fitting-Driven Intent</div>
-                    <div className="insight-body">
-                      Both brands show lower search volume but higher purchase-intent
-                      concentration in Q1–Q2 — consistent with the custom fitting calendar
-                      where serious players book sessions in late winter ahead of the season.
-                      Mizuno saw a modest uptick in Q1–Q2 2024 around the JPX 925 launch.
-                    </div>
-                  </div>
-                </div>
+          <div className="section-label">Latest Analysis</div>
+          <div className="analysis-grid">
+            <Link href="/blog/masters-week-2026-seasonal-ramp" className="analysis-card">
+              <div className="analysis-date">Apr 7, 2026</div>
+              <h3 className="analysis-title">Masters Week 2026: The Seasonal Ramp Is Right on Schedule</h3>
+              <p className="analysis-desc">
+                Golf clubs search jumped from 29 in February to 46 in March — tracking
+                the predictable spring surge as Augusta approaches.
+              </p>
+              <div className="analysis-tags">
+                <span className="analysis-tag">seasonality</span>
+                <span className="analysis-tag">golf clubs</span>
+                <span className="analysis-tag">masters</span>
               </div>
-            }
-          >
-            {chartJsReady ? <canvas ref={c7} /> : <div className="chart-placeholder skeleton" />}
-          </ChartCard>
+            </Link>
+            <Link href="/blog/tgl-second-season-simulator-search" className="analysis-card">
+              <div className="analysis-date">Feb 10, 2026</div>
+              <h3 className="analysis-title">TGL&apos;s Second Season Is Lifting Simulator Search — But the Structural Trend Was Already There</h3>
+              <p className="analysis-desc">
+                Golf simulator search hit its highest January reading in our dataset.
+                The TGL gets attention, but the real story is five years of compounding
+                off-season growth.
+              </p>
+              <div className="analysis-tags">
+                <span className="analysis-tag">golf simulator</span>
+                <span className="analysis-tag">TGL</span>
+                <span className="analysis-tag">structural growth</span>
+              </div>
+            </Link>
+          </div>
+          <div className="analysis-all">
+            <Link href="/blog">View all analysis →</Link>
+          </div>
         </section>
 
-        {/* ── Footer ────────────────────────────────────────────────────────── */}
+        {/* ── Footer ──────────────────────────────────────────────────────── */}
         <footer className="page-footer">
           <p className="footer-note">
             <strong>Methodology note:</strong>{' '}
             Google Trends reports normalized search interest on a 0–100 scale where 100 = peak
             interest for the selected time period and geography. Values are relative — not
-            absolute search volume counts. All series are fetched under the same timeframe
-            window to preserve comparability. Quarterly and annual values are derived by
-            averaging constituent monthly values. Summer peak = maximum of June, July, August
-            for each year. Data refreshes weekly on Mondays at 07:00 UTC. When live data is
-            unavailable, the dashboard serves seed data estimated from published industry
-            reports, confirmed by Accio.com&apos;s direct Google Trends export (key anchors:{' '}
+            absolute search volume counts. The index for any two separate API calls is not
+            directly comparable; all series in this dashboard are fetched under the same
+            timeframe window to preserve comparability. Quarterly and annual values are derived
+            by averaging constituent monthly values. Summer peak = maximum of June, July, August
+            for each year. Data refreshes daily at 06:00 UTC. When live data is unavailable,
+            the dashboard serves seed data estimated from published industry reports, confirmed
+            by Accio.com&apos;s direct Google Trends export (key anchors:{' '}
             <strong>&quot;golf clubs&quot; Aug 2025 = 91, Feb 2025 = 29; &quot;golf balls&quot; Aug 2025 = 46</strong>).
-            OEM brand terms fetched as: &quot;callaway golf&quot;, &quot;taylormade golf&quot;,
-            &quot;titleist&quot;, &quot;ping golf&quot;, &quot;mizuno golf&quot;.
             Partial-year data (current calendar year) is labeled with an asterisk.
           </p>
         </footer>
