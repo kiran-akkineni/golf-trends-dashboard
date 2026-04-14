@@ -257,7 +257,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
     destroy(inst3);
 
     const { monthly } = data.data;
-    const { keys, values: clubsVals } = lastNMonths(monthly.golfClubs, 24);
+    // Use golfClubsEquip - clubs normalized relative to balls/bags in same comparison group
+    const { keys, values: clubsVals } = lastNMonths(monthly.golfClubsEquip ?? monthly.golfClubs, 24);
     const ballsVals = keys.map((k) => monthly.golfBalls[k] ?? null);
     const bagsVals  = keys.map((k) => monthly.golfBags[k] ?? null);
     const labels    = keys.map(fmtMonthLabel);
@@ -713,20 +714,22 @@ export default function Dashboard({ initialData }: DashboardProps) {
       ])
     };
 
-    // Chart 3: Monthly Equipment (last 24)
-    const mKeys = Object.keys(monthly.golfClubs).sort().slice(-24);
+    // Chart 3: Monthly Equipment (last 24) - uses equipment comparison group
+    const equipClubs = monthly.golfClubsEquip ?? monthly.golfClubs;
+    const mKeysEquip = Object.keys(equipClubs).sort().slice(-24);
     const chart3 = {
       filename: 'golf-equipment-monthly',
       headers: ['Month', 'Golf Clubs', 'Golf Balls', 'Golf Bags'],
-      rows: mKeys.map(m => [
+      rows: mKeysEquip.map(m => [
         m,
-        monthly.golfClubs[m] ?? '',
+        equipClubs[m] ?? '',
         monthly.golfBalls[m] ?? '',
         monthly.golfBags[m] ?? ''
       ])
     };
 
-    // Chart 4: Simulator vs Clubs (last 24)
+    // Chart 4: Simulator vs Clubs (last 24) - uses broad comparison group
+    const mKeys = Object.keys(monthly.golfClubs).sort().slice(-24);
     const chart4 = {
       filename: 'simulator-vs-clubs-monthly',
       headers: ['Month', 'Golf Clubs', 'Golf Simulator'],

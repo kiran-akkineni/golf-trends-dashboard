@@ -371,13 +371,17 @@ export const SEED_DATA: TrendsResponse = {
   lastUpdated: null,
   data: {
     monthly: {
+      // Chart 2 group (normalized together): broad/participation terms
       golfClubs:     CLUBS_MONTHLY,
-      golfBalls:     BALLS_MONTHLY,
-      golfBags:      BAGS_MONTHLY,
       golf:          GOLF_MONTHLY,
       golfEquipment: EQUIP_MONTHLY,
       golfSimulator: SIM_MONTHLY,
-      // OEM brands
+      // Chart 3 group (normalized together): equipment breakdown
+      // In this comparison, clubs dominates so it stays near 100 at peaks
+      golfClubsEquip: CLUBS_MONTHLY,  // Same shape, clubs is anchor in this group
+      golfBalls:     BALLS_MONTHLY,
+      golfBags:      BAGS_MONTHLY,
+      // Chart 7 group (normalized together): OEM brands
       callaway:      CALLAWAY_MONTHLY,
       taylormade:    TAYLORMADE_MONTHLY,
       titleist:      TITLEIST_MONTHLY,
