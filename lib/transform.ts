@@ -21,7 +21,7 @@ export function weeklyToMonthly(
   const result: Record<string, number | null> = {};
   for (const [key, vals] of Object.entries(monthBuckets)) {
     if (vals.length < 2) {
-      result[key] = null;
+      result[key] = null; // insufficient data
     } else {
       result[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
@@ -107,19 +107,23 @@ export function buildTrendsResponse(
   source: 'live' | 'seed' = 'live',
   lastUpdated: string | null = new Date().toISOString()
 ): TrendsResponse {
-  const termMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
-    'golf clubs':        'golfClubs',
-    'golf balls':        'golfBalls',
-    'golf bags':         'golfBags',
-    'golf':              'golf',
-    'golf equipment':    'golfEquipment',
-    'golf simulator':    'golfSimulator',
-    // OEM brands
-    'callaway':       'callaway',
-    'taylormade':    'taylormade',
-    'titleist':          'titleist',
-    'ping':           'ping',
-    'mizuno':         'mizuno',
+  // Equipment term mapping
+  const equipmentMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
+    'golf clubs':     'golfClubs',
+    'golf balls':     'golfBalls',
+    'golf bags':      'golfBags',
+    'golf':           'golf',
+    'golf equipment': 'golfEquipment',
+    'golf simulator': 'golfSimulator',
+  };
+
+  // OEM brand mapping (case-insensitive lookup)
+  const oemMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
+    'callaway':   'callaway',
+    'taylormade': 'taylormade',
+    'titleist':   'titleist',
+    'ping':       'ping',
+    'mizuno':     'mizuno',
   };
 
   const monthly: TrendsResponse['data']['monthly'] = {
@@ -128,10 +132,24 @@ export function buildTrendsResponse(
     callaway: {}, taylormade: {}, titleist: {}, ping: {}, mizuno: {},
   };
 
-  for (const [term, key] of Object.entries(termMap)) {
+  // Process equipment terms
+  for (const [term, key] of Object.entries(equipmentMap)) {
     const rawTerm = raw[term];
     if (!rawTerm || 'error' in rawTerm) continue;
     monthly[key] = weeklyToMonthly(rawTerm as Record<string, number>);
+  }
+
+  // Process OEM terms (try both original case and lowercase)
+  for (const [termLower, key] of Object.entries(oemMap)) {
+    // Find the term in raw data (case-insensitive)
+    const rawKey = Object.keys(raw).find(
+      k => k.toLowerCase() === termLower
+    );
+    if (rawKey) {
+      const rawTerm = raw[rawKey];
+      if (!rawTerm || 'error' in rawTerm) continue;
+      monthly[key] = weeklyToMonthly(rawTerm as Record<string, number>);
+    }
   }
 
   return {
@@ -145,20 +163,10 @@ export function buildTrendsResponse(
         golf:          monthlyToQuarterly(monthly.golf),
         golfEquipment: monthlyToQuarterly(monthly.golfEquipment),
         golfSimulator: monthlyToQuarterly(monthly.golfSimulator),
-        callaway:      monthlyToQuarterly(monthly.callaway),
-        taylormade:    monthlyToQuarterly(monthly.taylormade),
-        titleist:      monthlyToQuarterly(monthly.titleist),
-        ping:          monthlyToQuarterly(monthly.ping),
-        mizuno:        monthlyToQuarterly(monthly.mizuno),
       },
       annual: {
         golfClubs:  monthlyToAnnual(monthly.golfClubs),
         summerPeak: monthlyToSummerPeak(monthly.golfClubs),
-        callaway:   monthlyToAnnual(monthly.callaway),
-        taylormade: monthlyToAnnual(monthly.taylormade),
-        titleist:   monthlyToAnnual(monthly.titleist),
-        ping:       monthlyToAnnual(monthly.ping),
-        mizuno:     monthlyToAnnual(monthly.mizuno),
       },
     },
   };

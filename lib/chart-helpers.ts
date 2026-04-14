@@ -20,6 +20,15 @@ export const COLORS = {
   surface: isDark ? '#1e293b' : '#ffffff',
 } as const;
 
+// OEM brand colors (using the main palette)
+export const OEM_COLORS = {
+  callaway:   COLORS.blue,
+  taylormade: COLORS.green,
+  titleist:   COLORS.teal,
+  ping:       COLORS.purple,
+  mizuno:     COLORS.gold,
+} as const;
+
 export const TOOLTIP_CONFIG = {
   backgroundColor: isDark ? '#0f172a' : '#1e293b',
   borderColor: isDark ? '#334155' : '#475569',
