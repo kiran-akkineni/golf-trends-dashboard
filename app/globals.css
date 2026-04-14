@@ -510,3 +510,25 @@ body {
   .callouts { grid-template-columns: repeat(2, 1fr); }
   .chart-body canvas { height: 220px !important; }
 }
+/* ── Interactive legend toggle ──────────────────────────────────────────────── */
+/* Append to globals.css */
+
+.legend-item--clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+
+.legend-item--clickable:hover {
+  opacity: 0.75;
+}
+
+.legend-item--hidden span {
+  text-decoration: line-through;
+  opacity: 0.35;
+}
+
+.legend-item--hidden .legend-dot,
+.legend-item--hidden .legend-line {
+  opacity: 0.2;
+}

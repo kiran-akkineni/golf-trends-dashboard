@@ -581,6 +581,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#58a6ff', label: 'Golf Equipment', dashed: true },
               { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
             ]}
+            onLegendItemClick={makeToggle(inst2)}
             footnote="Each quarter is the average of its 3 constituent monthly values. Quarters with any null month are omitted."
           >
             {chartJsReady ? (
@@ -601,6 +602,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#39d353', label: 'Balls' },
               { color: '#58a6ff', label: 'Bags', dashed: true },
             ]}
+            onLegendItemClick={makeToggle(inst3)}
             footnote="Peak month marked with larger point radius. Bags exhibit a November gifting spike distinct from the summer equipment pattern."
           >
             {chartJsReady ? (
@@ -620,6 +622,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: '#e3b341', label: 'Golf Clubs' },
               { color: '#bc8cff', label: 'Golf Simulator', dashed: true },
             ]}
+            onLegendItemClick={makeToggle(inst4)}
             footnote="Simulator interest peaks Nov–Feb when outdoor play declines. Clubs peak Jun–Aug. Two distinct consumer windows per year."
             below={
               <div style={{ padding: '0 24px 20px' }}>

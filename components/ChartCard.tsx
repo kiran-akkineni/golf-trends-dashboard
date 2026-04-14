@@ -1,3 +1,7 @@
+'use client';
+
+import { useState } from 'react';
+
 interface LegendItem {
   color: string;
   label: string;
@@ -11,9 +15,24 @@ interface ChartCardProps {
   children: React.ReactNode;
   below?: React.ReactNode;
   onDownload?: () => void;
+  onLegendItemClick?: (index: number) => void;
 }
 
-export default function ChartCard({ title, legend, footnote, children, below, onDownload }: ChartCardProps) {
+export default function ChartCard({
+  title, legend, footnote, children, below, onDownload, onLegendItemClick,
+}: ChartCardProps) {
+  const [hiddenIndices, setHiddenIndices] = useState<Set<number>>(new Set());
+
+  const handleLegendClick = (index: number) => {
+    setHiddenIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+    onLegendItemClick?.(index);
+  };
+
   return (
     <div className="chart-card">
       <div className="chart-header">
@@ -21,21 +40,32 @@ export default function ChartCard({ title, legend, footnote, children, below, on
         <div className="chart-header-right">
           {legend && legend.length > 0 && (
             <div className="chart-legend">
-              {legend.map((item) => (
-                <div key={item.label} className="legend-item">
-                  {item.dashed ? (
-                    <div
-                      className="legend-line"
-                      style={{
-                        background: `repeating-linear-gradient(90deg, ${item.color} 0, ${item.color} 5px, transparent 5px, transparent 9px)`,
-                      }}
-                    />
-                  ) : (
-                    <div className="legend-dot" style={{ background: item.color }} />
-                  )}
-                  <span>{item.label}</span>
-                </div>
-              ))}
+              {legend.map((item, i) => {
+                const hidden = hiddenIndices.has(i);
+                return (
+                  <div
+                    key={item.label}
+                    className={`legend-item${onLegendItemClick ? ' legend-item--clickable' : ''}${hidden ? ' legend-item--hidden' : ''}`}
+                    onClick={onLegendItemClick ? () => handleLegendClick(i) : undefined}
+                  >
+                    {item.dashed ? (
+                      <div
+                        className="legend-line"
+                        style={{
+                          background: `repeating-linear-gradient(90deg, ${item.color} 0, ${item.color} 5px, transparent 5px, transparent 9px)`,
+                          opacity: hidden ? 0.2 : 1,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="legend-dot"
+                        style={{ background: item.color, opacity: hidden ? 0.2 : 1 }}
+                      />
+                    )}
+                    <span>{item.label}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
           {onDownload && (
