@@ -609,6 +609,80 @@ export default function Dashboard({ initialData }: DashboardProps) {
     return { ranked, leader, second, third, leaderGap };
   })();
 
+  // ── Derived Simulator vs Clubs stats ────────────────────────────────────────
+  const simVsClubsStats = (() => {
+    const { monthly } = data.data;
+    const simData = monthly.golfSimulator ?? {};
+    const clubsData = monthly.golfClubs ?? {};
+
+    // Helper to get avg for a year
+    const yearAvg = (series: Record<string, number | null>, year: string) => {
+      const vals = Object.entries(series)
+        .filter(([k]) => k.startsWith(year))
+        .map(([, v]) => v)
+        .filter((v): v is number => v !== null);
+      return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    };
+
+    // Helper to get seasonal avg (summer = Jun-Aug, winter = Nov-Feb)
+    const seasonAvg = (series: Record<string, number | null>, months: number[]) => {
+      const vals = Object.entries(series)
+        .filter(([k]) => {
+          const m = parseInt(k.split('-')[1]);
+          return months.includes(m);
+        })
+        .map(([, v]) => v)
+        .filter((v): v is number => v !== null);
+      return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    };
+
+    // Find peak months for each (from last 24 months)
+    const last24Keys = Object.keys(clubsData).sort().slice(-24);
+    
+    const clubsPeakMonth = last24Keys.reduce((peak, k) => {
+      const v = clubsData[k];
+      if (v !== null && (peak.val === null || v > peak.val)) {
+        return { month: k, val: v };
+      }
+      return peak;
+    }, { month: '', val: null as number | null });
+
+    const simPeakMonth = last24Keys.reduce((peak, k) => {
+      const v = simData[k];
+      if (v !== null && (peak.val === null || v > peak.val)) {
+        return { month: k, val: v };
+      }
+      return peak;
+    }, { month: '', val: null as number | null });
+
+    // Simulator growth: compare 2019 avg to most recent full year avg
+    const sim2019 = yearAvg(simData, '2019');
+    const sim2024 = yearAvg(simData, '2024');
+    const sim2025 = yearAvg(simData, '2025');
+    const simRecent = sim2025 ?? sim2024;
+    const simGrowthPct = sim2019 && simRecent 
+      ? Math.round(((simRecent - sim2019) / sim2019) * 100)
+      : null;
+
+    // Seasonal averages (all-time)
+    const clubsSummer = seasonAvg(clubsData, [6, 7, 8]);
+    const clubsWinter = seasonAvg(clubsData, [11, 12, 1, 2]);
+    const simSummer = seasonAvg(simData, [6, 7, 8]);
+    const simWinter = seasonAvg(simData, [11, 12, 1, 2]);
+
+    return {
+      clubsPeakMonth: clubsPeakMonth.month,
+      simPeakMonth: simPeakMonth.month,
+      simGrowthPct,
+      simRecent,
+      sim2019,
+      clubsSummer,
+      clubsWinter,
+      simSummer,
+      simWinter,
+    };
+  })();
+
   // ── CSV Data for Downloads ──────────────────────────────────────────────────
   const csvData = (() => {
     const { monthly, quarterly, annual } = data.data;
@@ -843,25 +917,31 @@ export default function Dashboard({ initialData }: DashboardProps) {
                   <div className="insight">
                     <div className="insight-title">Two Consumer Windows</div>
                     <div className="insight-body">
-                      Golf clubs search peaks in summer (Jun–Aug) while simulator interest
-                      peaks in winter (Nov–Feb), creating two distinct high-intent buying
-                      windows per calendar year.
+                      Golf clubs peak in summer (avg index: <strong>{simVsClubsStats.clubsSummer}</strong>) 
+                      while simulators peak in winter (<strong>{simVsClubsStats.simWinter}</strong>), 
+                      creating two distinct high-intent buying windows per year.
                     </div>
                   </div>
                   <div className="insight">
-                    <div className="insight-title">Structural Off-Season Growth</div>
+                    <div className="insight-title">Simulator Growth Since 2019</div>
                     <div className="insight-body">
-                      Simulator search has grown roughly 36% from 2019 to 2023 and has
-                      stabilized at that elevated level — reflecting durable interest in
-                      year-round indoor golf, not just a pandemic anomaly.
+                      {simVsClubsStats.simGrowthPct !== null ? (
+                        <>
+                          Simulator search has grown <strong>{simVsClubsStats.simGrowthPct}%</strong> since 
+                          2019 (from {simVsClubsStats.sim2019} to {simVsClubsStats.simRecent} avg), 
+                          reflecting durable interest in year-round indoor golf.
+                        </>
+                      ) : (
+                        <>Simulator search shows structural growth in off-season interest.</>
+                      )}
                     </div>
                   </div>
                   <div className="insight">
-                    <div className="insight-title">TGL Launch Effect (Jan 2025)</div>
+                    <div className="insight-title">Inverse Seasonality</div>
                     <div className="insight-body">
-                      The Tiger Woods / Rory McIlroy TGL simulator league launched
-                      January 2025, coinciding with a sustained lift in simulator search
-                      during the typically high winter window.
+                      Clubs drop to <strong>{simVsClubsStats.clubsWinter}</strong> avg in winter while 
+                      simulators fall to <strong>{simVsClubsStats.simSummer}</strong> in summer — 
+                      a near-perfect inverse pattern driven by weather and playing conditions.
                     </div>
                   </div>
                 </div>
