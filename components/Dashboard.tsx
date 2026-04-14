@@ -579,6 +579,36 @@ export default function Dashboard({ initialData }: DashboardProps) {
     ? `+${newNormalAvg - prePandemicAvg} vs pre-pandemic avg`
     : null;
 
+  // ── Derived OEM brand stats ─────────────────────────────────────────────────
+  const oemStats = (() => {
+    const { monthly } = data.data;
+    const brands = [
+      { key: 'callaway', name: 'Callaway' },
+      { key: 'taylormade', name: 'TaylorMade' },
+      { key: 'titleist', name: 'Titleist' },
+      { key: 'ping', name: 'Ping' },
+      { key: 'mizuno', name: 'Mizuno' },
+    ] as const;
+
+    // Calculate average for last 24 months for each brand
+    const ranked = brands.map(({ key, name }) => {
+      const series = monthly[key as keyof typeof monthly] ?? {};
+      const values = Object.values(series).filter((v): v is number => v !== null && v !== undefined);
+      const last24 = values.slice(-24);
+      const avg = last24.length > 0 ? Math.round(last24.reduce((a, b) => a + b, 0) / last24.length) : 0;
+      return { key, name, avg };
+    }).sort((a, b) => b.avg - a.avg);
+
+    const leader = ranked[0];
+    const second = ranked[1];
+    const third = ranked[2];
+    const leaderGap = leader && second && second.avg > 0 
+      ? (leader.avg / second.avg).toFixed(1) 
+      : null;
+
+    return { ranked, leader, second, third, leaderGap };
+  })();
+
   return (
     <main>
       <div className="container">
@@ -789,32 +819,40 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: OEM_COLORS.ping, label: 'Ping', dashed: true },
               { color: OEM_COLORS.mizuno, label: 'Mizuno', dashed: true },
             ]}
-            footnote="Brand-level search interest in the Golf category (cat=261). All brands exhibit summer seasonality; Callaway and TaylorMade compete for top position."
+            footnote={`Brand-level search interest in the Golf category (cat=261). ${oemStats.leader?.name ?? 'Leader'} leads with ${oemStats.leader?.avg ?? '—'} avg index.`}
             below={
               <div style={{ padding: '0 24px 20px' }}>
                 <div className="insights">
                   <div className="insight">
-                    <div className="insight-title">Two-Horse Race at the Top</div>
+                    <div className="insight-title">
+                      {oemStats.leader?.name}: Search Leader
+                    </div>
                     <div className="insight-body">
-                      Callaway and TaylorMade consistently dominate brand search volume,
-                      trading the lead position based on new product launches. Both benefit
-                      from strong PGA Tour presence and aggressive marketing.
+                      {oemStats.leader?.name} leads golf brand search with an average index of{' '}
+                      <strong>{oemStats.leader?.avg}</strong>
+                      {oemStats.leaderGap && parseFloat(oemStats.leaderGap) >= 1.3
+                        ? ` — ${oemStats.leaderGap}× ahead of ${oemStats.second?.name}.`
+                        : `, narrowly ahead of ${oemStats.second?.name} (${oemStats.second?.avg}).`}
                     </div>
                   </div>
                   <div className="insight">
-                    <div className="insight-title">Titleist: The Ball & Wedge Giant</div>
+                    <div className="insight-title">
+                      {oemStats.second?.name} & {oemStats.third?.name}: The Chasers
+                    </div>
                     <div className="insight-body">
-                      While Titleist&apos;s overall brand search trails the big two, they
-                      dominate the ball category (Pro V1) and have a loyal following for
-                      Vokey wedges and tour-level irons.
+                      {oemStats.second?.name} holds second position (avg {oemStats.second?.avg}),
+                      with {oemStats.third?.name} close behind ({oemStats.third?.avg}).
+                      The gap between these two is often tighter than the gap to the leader.
                     </div>
                   </div>
                   <div className="insight">
-                    <div className="insight-title">Ping & Mizuno: Niche Loyalty</div>
+                    <div className="insight-title">
+                      {oemStats.ranked[3]?.name} & {oemStats.ranked[4]?.name}: Niche Players
+                    </div>
                     <div className="insight-body">
-                      Ping maintains strong search interest driven by custom fitting focus.
-                      Mizuno&apos;s lower volume belies a devoted fanbase among iron
-                      purists who value their forged JPX line.
+                      {oemStats.ranked[3]?.name} ({oemStats.ranked[3]?.avg} avg) and{' '}
+                      {oemStats.ranked[4]?.name} ({oemStats.ranked[4]?.avg} avg) maintain
+                      loyal followings despite lower overall search volume.
                     </div>
                   </div>
                 </div>
