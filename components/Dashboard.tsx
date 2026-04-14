@@ -609,6 +609,102 @@ export default function Dashboard({ initialData }: DashboardProps) {
     return { ranked, leader, second, third, leaderGap };
   })();
 
+  // ── CSV Data for Downloads ──────────────────────────────────────────────────
+  const csvData = (() => {
+    const { monthly, quarterly, annual } = data.data;
+
+    // Chart 1: Annual
+    const annualYears = ['2017','2018','2019','2020','2021','2022','2023','2024','2025','2026'];
+    const chart1 = {
+      filename: 'golf-clubs-annual',
+      headers: ['Year', 'Annual Average', 'Summer Peak'],
+      rows: annualYears.map(y => [
+        y,
+        annual.golfClubs[y] ?? '',
+        annual.summerPeak[y] ?? ''
+      ])
+    };
+
+    // Chart 2: Quarterly
+    const qKeys = Object.keys(quarterly.golfClubs).sort();
+    const chart2 = {
+      filename: 'golf-quarterly',
+      headers: ['Quarter', 'Golf (broad)', 'Golf Clubs', 'Golf Equipment', 'Golf Simulator'],
+      rows: qKeys.map(q => [
+        q,
+        quarterly.golf[q] ?? '',
+        quarterly.golfClubs[q] ?? '',
+        quarterly.golfEquipment[q] ?? '',
+        quarterly.golfSimulator[q] ?? ''
+      ])
+    };
+
+    // Chart 3: Monthly Equipment (last 24)
+    const mKeys = Object.keys(monthly.golfClubs).sort().slice(-24);
+    const chart3 = {
+      filename: 'golf-equipment-monthly',
+      headers: ['Month', 'Golf Clubs', 'Golf Balls', 'Golf Bags'],
+      rows: mKeys.map(m => [
+        m,
+        monthly.golfClubs[m] ?? '',
+        monthly.golfBalls[m] ?? '',
+        monthly.golfBags[m] ?? ''
+      ])
+    };
+
+    // Chart 4: Simulator vs Clubs (last 24)
+    const chart4 = {
+      filename: 'simulator-vs-clubs-monthly',
+      headers: ['Month', 'Golf Clubs', 'Golf Simulator'],
+      rows: mKeys.map(m => [
+        m,
+        monthly.golfClubs[m] ?? '',
+        monthly.golfSimulator[m] ?? ''
+      ])
+    };
+
+    // Chart 5: Heatmap (full monthly)
+    const allMKeys = Object.keys(monthly.golfClubs).sort();
+    const chart5 = {
+      filename: 'golf-clubs-monthly-full',
+      headers: ['Month', 'Golf Clubs Index'],
+      rows: allMKeys.map(m => [m, monthly.golfClubs[m] ?? ''])
+    };
+
+    // Chart 6: YoY Delta
+    const yoyYears = ['2018','2019','2020','2021','2022','2023','2024','2025'];
+    const chart6 = {
+      filename: 'golf-clubs-yoy-delta',
+      headers: ['Year', 'Summer Peak', 'Prior Year Peak', 'YoY Change'],
+      rows: yoyYears.map(y => {
+        const curr = annual.summerPeak[y];
+        const prev = annual.summerPeak[String(parseInt(y) - 1)];
+        return [
+          y,
+          curr ?? '',
+          prev ?? '',
+          curr && prev ? curr - prev : ''
+        ];
+      })
+    };
+
+    // Chart 7: OEM Brands (last 24)
+    const chart7 = {
+      filename: 'oem-brands-monthly',
+      headers: ['Month', 'Callaway', 'TaylorMade', 'Titleist', 'Ping', 'Mizuno'],
+      rows: mKeys.map(m => [
+        m,
+        monthly.callaway?.[m] ?? '',
+        monthly.taylormade?.[m] ?? '',
+        monthly.titleist?.[m] ?? '',
+        monthly.ping?.[m] ?? '',
+        monthly.mizuno?.[m] ?? ''
+      ])
+    };
+
+    return { chart1, chart2, chart3, chart4, chart5, chart6, chart7 };
+  })();
+
   return (
     <main>
       <div className="container">
@@ -645,6 +741,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">01 — Long-Run Annual Trend</div>
           <ChartCard
             title="Golf Clubs · Annual Average vs Summer Peak"
+            csvData={csvData.chart1}
             legend={[
               { color: '#60a5fa', label: 'Annual avg ≥75' },
               { color: '#3b82f6', label: '≥65' },
@@ -691,6 +788,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">02 — Quarterly Granularity</div>
           <ChartCard
             title="All Terms · Quarterly Average (2017–present)"
+            csvData={csvData.chart2}
             legend={[
               { color: COLORS.green, label: 'Golf (broad)' },
               { color: COLORS.blue, label: 'Golf Clubs' },
@@ -712,6 +810,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">03 — Monthly Equipment Breakdown</div>
           <ChartCard
             title="Golf Clubs / Balls / Bags · Last 24 Months"
+            csvData={csvData.chart3}
             legend={[
               { color: COLORS.blue, label: 'Clubs' },
               { color: COLORS.green, label: 'Balls' },
@@ -732,6 +831,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">04 — Inverse Seasonality: Simulator vs. Clubs</div>
           <ChartCard
             title="Golf Simulator vs. Golf Clubs · Last 24 Months"
+            csvData={csvData.chart4}
             legend={[
               { color: COLORS.blue, label: 'Golf Clubs' },
               { color: COLORS.purple, label: 'Golf Simulator', dashed: true },
@@ -781,6 +881,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">05 — Seasonal Heatmap · Golf Clubs</div>
           <ChartCard
             title="Golf Clubs · Monthly Index Heatmap (2017–present)"
+            csvData={csvData.chart5}
             footnote="Color encodes search index intensity. 2026* row shows only completed months — future months appear as null (—) cells."
           >
             <Heatmap monthly={data.data.monthly.golfClubs} />
@@ -792,6 +893,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">06 — Year-over-Year Delta</div>
           <ChartCard
             title="Golf Clubs · YoY Summer Peak Change"
+            csvData={csvData.chart6}
             legend={[
               { color: COLORS.green, label: 'Positive YoY' },
               { color: COLORS.red, label: 'Negative YoY' },
@@ -812,6 +914,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="section-label">07 — OEM Brand Search Interest</div>
           <ChartCard
             title="Golf Equipment Brands · Last 24 Months"
+            csvData={csvData.chart7}
             legend={[
               { color: OEM_COLORS.callaway, label: 'Callaway' },
               { color: OEM_COLORS.taylormade, label: 'TaylorMade' },
