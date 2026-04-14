@@ -76,6 +76,18 @@ export default function Dashboard({ initialData }: DashboardProps) {
     }
   }
 
+  // ── Legend toggle helper ────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function makeToggle(chartRef: React.MutableRefObject<any>) {
+    return (index: number) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const meta = chart.getDatasetMeta(index);
+      meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+      chart.update();
+    };
+  }
+
   // ── Chart 1: Long-Run Annual ────────────────────────────────────────────────
   const buildChart1 = useCallback(() => {
     const Chart = ChartRef.current;
@@ -698,6 +710,19 @@ export default function Dashboard({ initialData }: DashboardProps) {
         <section className="section">
           <div className="section-label">Latest Analysis</div>
           <div className="analysis-grid">
+            <Link href="/blog/post-masters-2026-april-momentum" className="analysis-card">
+              <div className="analysis-date">Apr 13, 2026</div>
+              <h3 className="analysis-title">Post-Masters 2026: April Momentum and the Road to Summer Peak</h3>
+              <p className="analysis-desc">
+                The Masters delivered its annual search surge, but the real story is what
+                April&apos;s trajectory tells us about the summer ahead.
+              </p>
+              <div className="analysis-tags">
+                <span className="analysis-tag">seasonality</span>
+                <span className="analysis-tag">summer peak</span>
+                <span className="analysis-tag">2026</span>
+              </div>
+            </Link>
             <Link href="/blog/masters-week-2026-seasonal-ramp" className="analysis-card">
               <div className="analysis-date">Apr 7, 2026</div>
               <h3 className="analysis-title">Masters Week 2026: The Seasonal Ramp Is Right on Schedule</h3>
@@ -709,20 +734,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <span className="analysis-tag">seasonality</span>
                 <span className="analysis-tag">golf clubs</span>
                 <span className="analysis-tag">masters</span>
-              </div>
-            </Link>
-            <Link href="/blog/tgl-second-season-simulator-search" className="analysis-card">
-              <div className="analysis-date">Feb 10, 2026</div>
-              <h3 className="analysis-title">TGL&apos;s Second Season Is Lifting Simulator Search — But the Structural Trend Was Already There</h3>
-              <p className="analysis-desc">
-                Golf simulator search hit its highest January reading in our dataset.
-                The TGL gets attention, but the real story is five years of compounding
-                off-season growth.
-              </p>
-              <div className="analysis-tags">
-                <span className="analysis-tag">golf simulator</span>
-                <span className="analysis-tag">TGL</span>
-                <span className="analysis-tag">structural growth</span>
               </div>
             </Link>
           </div>
