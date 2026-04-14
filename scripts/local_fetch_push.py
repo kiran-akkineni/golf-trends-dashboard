@@ -2,6 +2,9 @@
 """
 Fetches Google Trends data directly (no pytrends) and pushes to Upstash Redis.
 Includes both equipment terms and OEM brand terms (Golf category = 261).
+
+OEM brands are fetched in a SINGLE comparison query so they're normalized
+relative to each other (matching how Google Trends displays them).
 """
 
 import json, time, random, sys, os, urllib.request, urllib.parse
@@ -11,16 +14,14 @@ UPSTASH_URL   = os.environ.get("UPSTASH_REDIS_REST_URL", "").rstrip("/")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 TTL_SECONDS   = 86400 * 8
 
-# Equipment terms (general category)
+# Equipment terms (general category, fetched individually)
 EQUIPMENT_TERMS = [
     "golf clubs", "golf balls", "golf bags",
     "golf", "golf equipment", "golf simulator"
 ]
 
-# OEM brand terms (Golf category = 261)
-OEM_TERMS = [
-    "Callaway", "Taylormade", "Titleist", "Ping", "Mizuno"
-]
+# OEM brand terms (Golf category = 261, fetched together for relative comparison)
+OEM_TERMS = ["Callaway", "Taylormade", "Titleist", "Ping", "Mizuno"]
 
 if not UPSTASH_URL or not UPSTASH_TOKEN:
     print("ERROR: Missing Upstash env vars.")
@@ -40,8 +41,8 @@ session.headers.update(HEADERS)
 def strip_xssi(text):
     return text.lstrip(")]}',\n").strip()
 
-def get_token(term, timeframe="2017-01-01 2026-03-30", geo="US", category=0):
-    """Get token for a term. category=261 for Golf category, 0 for general."""
+def get_token(term, timeframe="2017-01-01 2026-04-30", geo="US", category=0):
+    """Get token for a single term."""
     req_body = json.dumps({
         "comparisonItem": [{"keyword": term, "geo": geo, "time": timeframe}],
         "category": category,
@@ -59,7 +60,28 @@ def get_token(term, timeframe="2017-01-01 2026-03-30", geo="US", category=0):
         raise ValueError(f"No TIMESERIES widget for '{term}'")
     return w["token"], w["request"]
 
+def get_comparison_token(terms, timeframe="2017-01-01 2026-04-30", geo="US", category=0):
+    """Get token for multiple terms compared together (relative scaling)."""
+    comparison_items = [{"keyword": t, "geo": geo, "time": timeframe} for t in terms]
+    req_body = json.dumps({
+        "comparisonItem": comparison_items,
+        "category": category,
+        "property": ""
+    })
+    params = {"hl": "en-US", "tz": "360", "req": req_body}
+    r = session.get(f"{BASE}/trends/api/explore", params=params, timeout=30)
+    if r.status_code == 429:
+        raise Exception(f"429 rate limited")
+    r.raise_for_status()
+    data = json.loads(strip_xssi(r.text))
+    widgets = data.get("widgets", [])
+    w = next((w for w in widgets if w["id"] == "TIMESERIES"), None)
+    if not w:
+        raise ValueError(f"No TIMESERIES widget for comparison query")
+    return w["token"], w["request"]
+
 def get_series(token, request):
+    """Get time series for a single term."""
     params = {"hl": "en-US", "tz": "360", "req": json.dumps(request), "token": token}
     r = session.get(f"{BASE}/trends/api/widgetdata/multiline", params=params, timeout=30)
     r.raise_for_status()
@@ -73,6 +95,29 @@ def get_series(token, request):
         else:
             result[date] = int(val)
     return result
+
+def get_comparison_series(token, request, terms):
+    """Get time series for multiple terms (returns dict of term -> data)."""
+    params = {"hl": "en-US", "tz": "360", "req": json.dumps(request), "token": token}
+    r = session.get(f"{BASE}/trends/api/widgetdata/multiline", params=params, timeout=30)
+    r.raise_for_status()
+    data = json.loads(strip_xssi(r.text))
+    
+    # Initialize result dict for each term
+    results = {t: {} for t in terms}
+    
+    for pt in data.get("default", {}).get("timelineData", []):
+        date = time.strftime("%Y-%m-%d", time.gmtime(int(pt["time"])))
+        values = pt["value"]
+        for i, t in enumerate(terms):
+            if i < len(values):
+                val = values[i]
+                if isinstance(val, dict):
+                    results[t][date] = val.get("extractedValue", 0)
+                else:
+                    results[t][date] = int(val)
+    
+    return results
 
 def monthly_bucket(data):
     """Convert weekly or monthly data to monthly buckets."""
@@ -126,8 +171,8 @@ def upstash_set(key, value, ttl):
         print(f"  Upstash ERROR: {e}")
         raise
 
-def fetch_terms(terms, category=0, label=""):
-    """Fetch a list of terms with given category."""
+def fetch_single_terms(terms, category=0, label=""):
+    """Fetch terms one at a time (each normalized independently)."""
     raw = {}
     today = time.strftime("%Y-%m-%d", time.gmtime())
     
@@ -157,6 +202,29 @@ def fetch_terms(terms, category=0, label=""):
     
     return raw
 
+def fetch_comparison_terms(terms, category=0, label=""):
+    """Fetch multiple terms in one query (normalized relative to each other)."""
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    print(f"[{label}] Fetching {len(terms)} terms together for relative comparison...")
+    
+    retries = 2
+    for attempt in range(retries):
+        try:
+            token, request = get_comparison_token(terms, timeframe=f"2017-01-01 {today}", category=category)
+            time.sleep(1 + random.random())
+            results = get_comparison_series(token, request, terms)
+            for t in terms:
+                print(f"  {t}: {len(results.get(t, {}))} points")
+            return results
+        except Exception as e:
+            if attempt < retries - 1:
+                wait = 15 + random.uniform(5, 10)
+                print(f"  retrying in {wait:.0f}s ({e})...")
+                time.sleep(wait)
+            else:
+                print(f"✗ Failed: {e}")
+                return {t: {} for t in terms}
+
 # ── Warm up session with a page visit first ───────────────────────────────────
 print("Warming up session...")
 try:
@@ -165,17 +233,17 @@ try:
 except Exception as e:
     print(f"  warm-up warning: {e}")
 
-# ── Fetch equipment terms (category=0) ────────────────────────────────────────
-print("\nFetching equipment terms...")
-raw_equipment = fetch_terms(EQUIPMENT_TERMS, category=0, label="EQUIP")
+# ── Fetch equipment terms (category=0, individually) ──────────────────────────
+print("\nFetching equipment terms (individually)...")
+raw_equipment = fetch_single_terms(EQUIPMENT_TERMS, category=0, label="EQUIP")
 
 # ── Pause between batches ─────────────────────────────────────────────────────
 print("\nPausing between batches...")
 time.sleep(10 + random.uniform(5, 10))
 
-# ── Fetch OEM brand terms (category=261 = Golf) ───────────────────────────────
-print("\nFetching OEM brand terms (Golf category)...")
-raw_oem = fetch_terms(OEM_TERMS, category=261, label="OEM")
+# ── Fetch OEM brand terms together (category=261, relative comparison) ────────
+print("\nFetching OEM brand terms (Golf category, relative comparison)...")
+raw_oem = fetch_comparison_terms(OEM_TERMS, category=261, label="OEM")
 
 # ── Combine and transform ─────────────────────────────────────────────────────
 equipment_map = {
@@ -236,4 +304,4 @@ payload = {
 print("\nPushing to Redis...")
 upstash_set("golf_trends_data", json.dumps(payload), TTL_SECONDS)
 upstash_set("golf_trends_last_updated", payload["lastUpdated"], TTL_SECONDS+3600)
-print("✓ Done! Dashboard will now serve live data with OEM brands.")
+print("✓ Done! Dashboard will now serve live data with relative OEM comparison.")
