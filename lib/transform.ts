@@ -102,54 +102,53 @@ export function monthlyToSummerPeak(
 }
 
 // Build a full TrendsResponse from the raw pytrends dict output
+// Note: This is a legacy function - the Python script now handles transformation
+// and pushes directly to Redis. This is kept for potential future use.
 export function buildTrendsResponse(
   raw: RawTrendsRecord,
   source: 'live' | 'seed' = 'live',
   lastUpdated: string | null = new Date().toISOString()
 ): TrendsResponse {
-  // Equipment term mapping
-  const equipmentMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
-    'golf clubs':     'golfClubs',
-    'golf balls':     'golfBalls',
-    'golf bags':      'golfBags',
+  const termMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
+    // Chart 2 group
     'golf':           'golf',
+    'golf clubs':     'golfClubs',
     'golf equipment': 'golfEquipment',
     'golf simulator': 'golfSimulator',
-  };
-
-  // OEM brand mapping (case-insensitive lookup)
-  const oemMap: Record<string, keyof TrendsResponse['data']['monthly']> = {
-    'callaway':   'callaway',
-    'taylormade': 'taylormade',
-    'titleist':   'titleist',
-    'ping':       'ping',
-    'mizuno':     'mizuno',
+    // Chart 3 group
+    'golf clubs equip': 'golfClubsEquip',
+    'golf balls':     'golfBalls',
+    'golf bags':      'golfBags',
+    // OEM brands (Chart 7)
+    'callaway':       'callaway',
+    'taylormade':     'taylormade',
+    'titleist':       'titleist',
+    'ping':           'ping',
+    'mizuno':         'mizuno',
   };
 
   const monthly: TrendsResponse['data']['monthly'] = {
-    golfClubs: {}, golfBalls: {}, golfBags: {},
-    golf: {}, golfEquipment: {}, golfSimulator: {},
-    callaway: {}, taylormade: {}, titleist: {}, ping: {}, mizuno: {},
+    // Chart 2 group (normalized together)
+    golfClubs: {},
+    golf: {},
+    golfEquipment: {},
+    golfSimulator: {},
+    // Chart 3 group (normalized together)
+    golfClubsEquip: {},
+    golfBalls: {},
+    golfBags: {},
+    // OEM brands (Chart 7, normalized together)
+    callaway: {},
+    taylormade: {},
+    titleist: {},
+    ping: {},
+    mizuno: {},
   };
 
-  // Process equipment terms
-  for (const [term, key] of Object.entries(equipmentMap)) {
-    const rawTerm = raw[term];
+  for (const [term, key] of Object.entries(termMap)) {
+    const rawTerm = raw[term] ?? raw[term.toLowerCase()];
     if (!rawTerm || 'error' in rawTerm) continue;
     monthly[key] = weeklyToMonthly(rawTerm as Record<string, number>);
-  }
-
-  // Process OEM terms (try both original case and lowercase)
-  for (const [termLower, key] of Object.entries(oemMap)) {
-    // Find the term in raw data (case-insensitive)
-    const rawKey = Object.keys(raw).find(
-      k => k.toLowerCase() === termLower
-    );
-    if (rawKey) {
-      const rawTerm = raw[rawKey];
-      if (!rawTerm || 'error' in rawTerm) continue;
-      monthly[key] = weeklyToMonthly(rawTerm as Record<string, number>);
-    }
   }
 
   return {
