@@ -872,7 +872,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: COLORS.teal, label: 'Golf Equipment', dashed: true },
               { color: COLORS.purple, label: 'Golf Simulator', dashed: true },
             ]}
-            footnote="Each quarter is the average of its 3 constituent monthly values. Quarters with any null month are omitted."
+            footnote="Each term indexed independently (0–100 scale). Quarters are averages of 3 monthly values; quarters with null months omitted."
           >
             {chartJsReady ? (
               <canvas ref={c2} />
@@ -893,7 +893,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: COLORS.green, label: 'Balls' },
               { color: COLORS.teal, label: 'Bags', dashed: true },
             ]}
-            footnote="Peak month marked with larger point radius. Bags exhibit a November gifting spike distinct from the summer equipment pattern."
+            footnote="Terms indexed together for relative comparison. Peak month marked with larger point radius."
           >
             {chartJsReady ? (
               <canvas ref={c3} />
@@ -913,7 +913,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: COLORS.blue, label: 'Golf Clubs' },
               { color: COLORS.purple, label: 'Golf Simulator', dashed: true },
             ]}
-            footnote="Simulator interest peaks Nov–Feb when outdoor play declines. Clubs peak Jun–Aug. Two distinct consumer windows per year."
+            footnote="Each term indexed independently (0–100 scale). Simulator peaks Nov–Feb; Clubs peak Jun–Aug."
             below={
               <div style={{ padding: '0 24px 20px' }}>
                 <div className="insights">
@@ -1005,7 +1005,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               { color: OEM_COLORS.ping, label: 'Ping', dashed: true },
               { color: OEM_COLORS.mizuno, label: 'Mizuno', dashed: true },
             ]}
-            footnote={`Brand-level search interest in the Golf category (cat=261). ${oemStats.leader?.name ?? 'Leader'} leads with ${oemStats.leader?.avg ?? '—'} avg index.`}
+            footnote={`Terms indexed together for relative comparison (Golf category, cat=261). ${oemStats.leader?.name ?? 'Leader'} leads with ${oemStats.leader?.avg ?? '—'} avg index.`}
             below={
               <div style={{ padding: '0 24px 20px' }}>
                 <div className="insights">
